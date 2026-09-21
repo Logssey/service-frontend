@@ -12,6 +12,7 @@ import type {
 } from '@/features/trades/model/types'
 import { PRODUCT_SHEET_URL } from '@/mocks/listingFixtures'
 import { mockListingRepository } from '@/mocks/listingRepository'
+import { ApiClientError } from '@/shared/api/http'
 
 const CURRENT_USER: UserSummaryResponse = {
   userId: 3,
@@ -304,6 +305,24 @@ export const mockTradeRepository = {
   attachChatRoom(tradeId: number, chatRoomId: number) {
     const trade = trades.find((item) => item.tradeId === tradeId)
     if (trade) trade.chatRoomId = chatRoomId
+  },
+
+  markReviewWritten(tradeId: number) {
+    const trade = trades.find((item) => item.tradeId === tradeId)
+    if (!trade) {
+      throw new ApiClientError(404, 'NOT_FOUND', '거래를 찾을 수 없습니다.')
+    }
+    if (trade.status !== 'COMPLETED') {
+      throw new ApiClientError(
+        409,
+        'CONFLICT',
+        '완료된 거래만 후기를 작성할 수 있습니다.',
+      )
+    }
+    if (trade.reviewWritten) {
+      throw new ApiClientError(409, 'CONFLICT', '이미 후기를 작성했습니다.')
+    }
+    trade.reviewWritten = true
   },
 
   reset() {

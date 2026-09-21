@@ -128,14 +128,13 @@ export function TradeDetailPage() {
     }
     if (trade.status === 'COMPLETED' && !trade.reviewWritten) {
       return (
-        <button
+        <Link
           className="button button--primary"
-          type="button"
-          onClick={() => showToast('후기 작성은 다음 단계에서 연결됩니다.')}
+          to={`/trades/${trade.tradeId}/review`}
         >
           <Star size={18} aria-hidden="true" />
           후기 쓰기
-        </button>
+        </Link>
       )
     }
     return null

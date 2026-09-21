@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/app/App'
 import { listingsApi } from '@/features/listings/api/listingsApi'
+import { reviewsApi } from '@/features/reviews/api/reviewsApi'
 import {
   initialListingFilters,
   useListingFilterStore,
@@ -12,6 +13,7 @@ import {
 import { mockListingRepository } from '@/mocks/listingRepository'
 import { mockChatRepository } from '@/mocks/chatRepository'
 import { mockTradeRepository } from '@/mocks/tradeRepository'
+import { mockReviewRepository } from '@/mocks/reviewRepository'
 
 function renderRoute(path: string) {
   const queryClient = new QueryClient({
@@ -31,6 +33,7 @@ describe('개발자 A 핵심 거래 흐름', () => {
     mockListingRepository.reset()
     mockTradeRepository.reset()
     mockChatRepository.reset()
+    mockReviewRepository.reset()
     useListingFilterStore.setState(initialListingFilters)
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -136,6 +139,84 @@ describe('개발자 A 핵심 거래 흐름', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '거래 취소' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '거래 완료' })).not.toBeInTheDocument()
+  })
+
+  it('완료 거래의 후기를 등록하고 작성 상태를 거래 화면에 반영한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/trades/57')
+
+    await user.click(await screen.findByRole('link', { name: '후기 쓰기' }))
+
+    expect(
+      await screen.findByRole('heading', { name: '거래 후기' }),
+    ).toBeInTheDocument()
+    const submit = screen.getByRole('button', { name: '후기 등록' })
+    expect(submit).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: '5점' }))
+    await user.type(
+      screen.getByRole('textbox', { name: '거래 경험' }),
+      '친절하고 편안한 거래였습니다.',
+    )
+    await user.click(submit)
+
+    expect(
+      await screen.findByRole('heading', { name: '거래 완료' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: '후기 쓰기' }),
+    ).not.toBeInTheDocument()
+    expect((await mockTradeRepository.getTrade(57)).reviewWritten).toBe(true)
+    await expect(
+      mockReviewRepository.createReview({ tradeId: 57, rating: 5 }),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' })
+  })
+
+  it('완료되지 않은 거래의 후기 직접 진입과 mock 등록을 차단한다', async () => {
+    renderRoute('/trades/58/review')
+
+    expect(await screen.findByText('후기를 작성할 수 없어요')).toBeInTheDocument()
+    expect(
+      screen.getByText('거래가 완료된 뒤 후기를 작성할 수 있습니다.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '후기 등록' }),
+    ).not.toBeInTheDocument()
+    await expect(
+      mockReviewRepository.createReview({ tradeId: 58, rating: 3 }),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' })
+  })
+
+  it('후기 500자 제한을 지키고 등록 오류에도 입력과 별점을 유지한다', async () => {
+    const user = userEvent.setup()
+    const createReview = vi
+      .spyOn(reviewsApi, 'createReview')
+      .mockRejectedValue(new Error('이미 후기를 작성했습니다.'))
+    renderRoute('/trades/57/review')
+
+    expect(
+      await screen.findByRole('heading', { name: '거래 후기' }),
+    ).toBeInTheDocument()
+    const content = await screen.findByRole('textbox', { name: '거래 경험' })
+    const maximumContent = '가'.repeat(500)
+    fireEvent.change(content, { target: { value: `${maximumContent}초과` } })
+    await user.click(screen.getByRole('button', { name: '4점' }))
+    await user.click(screen.getByRole('button', { name: '후기 등록' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '이미 후기를 작성했습니다.',
+    )
+    expect(content).toHaveValue(maximumContent)
+    expect(screen.getByText('500 / 500')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '4점' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(createReview).toHaveBeenCalledWith({
+      tradeId: 57,
+      rating: 4,
+      content: maximumContent,
+    })
   })
 
   it('채팅 목록에서 최근 대화와 읽지 않은 메시지를 보여준다', async () => {

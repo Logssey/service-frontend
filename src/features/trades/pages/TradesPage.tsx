@@ -10,7 +10,6 @@ import type {
 import { EmptyState, ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { MobileBottomNavigation } from '@/shared/layout/MobileBottomNavigation'
-import { useToastStore } from '@/shared/state/toastStore'
 
 const numberFormatter = new Intl.NumberFormat('ko-KR')
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -34,7 +33,6 @@ function isTradeStatus(value: string | null): value is TradeStatus {
 
 export function TradesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const showToast = useToastStore((state) => state.show)
   const role: TradeRoleFilter =
     searchParams.get('role') === 'seller' ? 'seller' : 'buyer'
   const rawStatus = searchParams.get('status')
@@ -136,14 +134,13 @@ export function TradesPage() {
                   <ChevronRight aria-hidden="true" />
                 </Link>
                 {trade.status === 'COMPLETED' && !trade.reviewWritten ? (
-                  <button
+                  <Link
                     className="trade-card__review"
-                    type="button"
-                    onClick={() => showToast('후기 작성은 다음 단계에서 연결됩니다.')}
+                    to={`/trades/${trade.tradeId}/review`}
                   >
                     <Star size={16} aria-hidden="true" />
                     후기 쓰기
-                  </button>
+                  </Link>
                 ) : null}
               </article>
             ))}
