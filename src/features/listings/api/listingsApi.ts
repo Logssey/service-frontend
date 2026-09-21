@@ -48,18 +48,27 @@ async function uploadSingleImage(file: File) {
     method: 'POST',
     body: JSON.stringify(request),
   })
-  const uploadResponse = await fetch(upload.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type },
-    body: file,
-  })
-  if (!uploadResponse.ok) {
-    throw new Error('이미지 업로드에 실패했습니다.')
+  try {
+    const uploadResponse = await fetch(upload.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    })
+    if (!uploadResponse.ok) {
+      throw new Error('이미지 업로드에 실패했습니다.')
+    }
+    return await apiRequest<ImageUploadResultResponse>(
+      `/images/${upload.imageId}/complete`,
+      { method: 'POST' },
+    )
+  } catch (error) {
+    await Promise.allSettled([deleteUploadedImage(upload.imageId)])
+    throw error
   }
-  return apiRequest<ImageUploadResultResponse>(
-    `/images/${upload.imageId}/complete`,
-    { method: 'POST' },
-  )
+}
+
+function deleteUploadedImage(imageId: number) {
+  return apiRequest<void>(`/images/${imageId}`, { method: 'DELETE' })
 }
 
 export const listingsApi = {
@@ -80,7 +89,27 @@ export const listingsApi = {
 
   async uploadImages(files: File[]): Promise<ImageUploadResultResponse[]> {
     if (useMocks) return mockListingRepository.uploadImages(files)
-    return Promise.all(files.map(uploadSingleImage))
+    const results = await Promise.allSettled(files.map(uploadSingleImage))
+    const completed = results.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    )
+    const failed = results.find((result) => result.status === 'rejected')
+
+    if (failed) {
+      await Promise.allSettled(
+        completed
+          .filter((image) => image.status === 'VERIFIED')
+          .map((image) => deleteUploadedImage(image.imageId)),
+      )
+      throw failed.reason
+    }
+
+    return completed
+  },
+
+  async deleteImage(imageId: number): Promise<void> {
+    if (useMocks) return mockListingRepository.deleteImage(imageId)
+    return deleteUploadedImage(imageId)
   },
 
   async createListing(
@@ -102,5 +131,10 @@ export const listingsApi = {
       method: 'PATCH',
       body: JSON.stringify(request),
     })
+  },
+
+  async deleteListing(listingId: number): Promise<void> {
+    if (useMocks) return mockListingRepository.deleteListing(listingId)
+    return apiRequest<void>(`/listings/${listingId}`, { method: 'DELETE' })
   },
 }

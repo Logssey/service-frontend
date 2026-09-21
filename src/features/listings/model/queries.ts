@@ -1,10 +1,16 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { listingsApi } from '@/features/listings/api/listingsApi'
 import type { ListingFilters } from '@/features/listings/model/types'
 
 export const listingKeys = {
   all: ['listings'] as const,
   categories: ['categories'] as const,
+  lists: () => [...listingKeys.all, 'list'] as const,
   list: (filters: ListingFilters) => [...listingKeys.all, 'list', filters] as const,
   detail: (listingId: number) =>
     [...listingKeys.all, 'detail', listingId] as const,
@@ -38,5 +44,22 @@ export function useListing(listingId: number) {
     queryKey: listingKeys.detail(listingId),
     queryFn: () => listingsApi.getListing(listingId),
     enabled: Number.isFinite(listingId),
+  })
+}
+
+export function useDeleteListing() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (listingId: number) => listingsApi.deleteListing(listingId),
+    onSuccess: (_response, listingId) => {
+      queryClient.removeQueries({
+        queryKey: listingKeys.detail(listingId),
+        exact: true,
+      })
+      void queryClient.invalidateQueries({ queryKey: listingKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: ['wishes'] })
+      void queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
   })
 }
