@@ -219,6 +219,78 @@ describe('개발자 A 핵심 거래 흐름', () => {
     })
   })
 
+  it('내 게시글의 거래 지표와 상태 필터를 보여주고 cursor로 이어서 조회한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/me')
+
+    expect(
+      await screen.findByRole('heading', { name: '거래 활동을 한곳에서' }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: '빈티지 그린 데스크 램프' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('대기 중인 거래 요청 1개'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'MY' })).toHaveClass('is-active')
+
+    await user.click(screen.getByRole('button', { name: '거래완료' }))
+    expect(
+      await screen.findByRole('heading', { name: '화이트 기계식 키보드' }),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('heading', { name: '빈티지 그린 데스크 램프' }),
+      ).not.toBeInTheDocument()
+    })
+
+    const firstPage = await mockListingRepository.getMySellingListings({
+      status: null,
+      size: 1,
+    })
+    const secondPage = await mockListingRepository.getMySellingListings({
+      status: null,
+      size: 1,
+      cursor: firstPage.nextCursor,
+    })
+    expect(firstPage.hasNext).toBe(true)
+    expect(secondPage.items[0].listingId).not.toBe(firstPage.items[0].listingId)
+  })
+
+  it('내 활동에서 판매자에게 도착한 거래 요청을 기존 거래 흐름으로 연결한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/me')
+
+    await user.click(await screen.findByRole('tab', { name: '받은 요청' }))
+
+    expect(
+      await screen.findByRole('heading', { name: '빈티지 그린 데스크 램프' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('조명찾는사람님의 구매 요청')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /빈티지 그린 데스크 램프 상품 사진/ }),
+    ).toHaveAttribute('href', '/trades/59')
+  })
+
+  it('받은 후기의 작성자·별점·선택 본문을 표시하고 cursor를 지원한다', async () => {
+    renderRoute('/me?tab=reviews')
+
+    expect(await screen.findByText('조명찾는사람')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '별점 5점' })).toBeInTheDocument()
+    expect(
+      screen.getByText('약속 시간을 잘 지켜 주시고 상품 설명도 정확했어요.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('별점만 남긴 후기입니다.')).toBeInTheDocument()
+
+    const firstPage = await mockReviewRepository.getReceivedReviews(null, 1)
+    const secondPage = await mockReviewRepository.getReceivedReviews(
+      firstPage.nextCursor,
+      1,
+    )
+    expect(firstPage.hasNext).toBe(true)
+    expect(secondPage.items[0].reviewId).not.toBe(firstPage.items[0].reviewId)
+  })
+
   it('채팅 목록에서 최근 대화와 읽지 않은 메시지를 보여준다', async () => {
     renderRoute('/chat')
 
