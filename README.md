@@ -1,6 +1,6 @@
 # Re:Used Frontend
 
-Re:Used 중고거래 서비스의 React SPA입니다. 현재는 개발자 A의 1단계 범위인 카테고리·이미지·게시글 화면을 목 API로 실행할 수 있습니다.
+Re:Used 중고거래 서비스의 React SPA입니다. 개발자 A의 카테고리·이미지·게시글부터 찜·거래·채팅까지 목 API로 실행할 수 있습니다.
 
 ## 현재 구현 범위
 
@@ -8,6 +8,11 @@ Re:Used 중고거래 서비스의 React SPA입니다. 현재는 개발자 A의 1
 - `HOME-002` 검색·필터
 - `PROD-001` 상품 상세
 - `PROD-002` 상품 등록·수정
+- `WISH-001` 찜 목록과 등록·해제
+- `TRADE-001` 구매·판매 거래 내역
+- `TRADE-002` 거래 상세와 역할별 상태 전이
+- `CHAT-001` 채팅 목록과 미읽음 상태
+- `CHAT-002` 채팅방, 메시지 전송·삭제·읽음 처리
 - 문서 DTO와 동일한 목 repository
 - Presigned URL 기반 이미지 업로드 어댑터
 - 모바일 우선 반응형 레이아웃과 데스크톱 대응
@@ -28,6 +33,8 @@ npm run dev
 
 기본 주소는 `http://localhost:5173`입니다.
 
+주요 화면은 `/`, `/wishes`, `/trades`, `/chat`에서 확인할 수 있습니다.
+
 ## 검증
 
 ```powershell
@@ -46,3 +53,5 @@ VITE_USE_MOCKS=true
 ```
 
 `VITE_USE_MOCKS=false`로 전환하면 Vite 개발 서버가 `/api` 요청을 `http://localhost:8080`으로 프록시합니다.
+
+실제 API 계약에는 채팅방 단건 조회가 아직 없습니다. `/chat/:chatRoomId` 직접 진입은 현재 API 어댑터가 채팅방 목록을 순회해 복구하며, 백엔드 구현 전에 단건 조회 응답 계약을 확정해야 합니다. Socket.IO 실시간 수신은 인증·채팅 서버가 준비된 뒤 연결하고, 메시지 저장은 문서대로 HTTP API를 사용합니다.

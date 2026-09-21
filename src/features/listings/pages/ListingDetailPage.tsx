@@ -11,6 +11,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ListingStatusBadge } from '@/features/listings/components/ListingStatusBadge'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 import { useListing } from '@/features/listings/model/queries'
+import { useCreateChatRoom } from '@/features/chat/model/queries'
 import { useSetWish } from '@/features/wishes/model/queries'
 import { useCreateTrade } from '@/features/trades/model/queries'
 import { ErrorState, LoadingState } from '@/shared/components/AsyncState'
@@ -38,6 +39,7 @@ export function ListingDetailPage() {
   const showToast = useToastStore((state) => state.show)
   const setWish = useSetWish()
   const createTrade = useCreateTrade()
+  const createChatRoom = useCreateChatRoom()
 
   if (listingQuery.isLoading) {
     return (
@@ -183,10 +185,21 @@ export function ListingDetailPage() {
             <button
               className="button button--secondary detail-actions__chat"
               type="button"
-              onClick={() => showToast('채팅은 2단계에서 연결됩니다.')}
+              disabled={createChatRoom.isPending}
+              onClick={() =>
+                createChatRoom.mutate(listingId, {
+                  onSuccess: ({ chatRoomId }) => navigate(`/chat/${chatRoomId}`),
+                  onError: (error) =>
+                    showToast(
+                      error instanceof Error
+                        ? error.message
+                        : '채팅방을 열지 못했습니다.',
+                    ),
+                })
+              }
             >
               <MessageCircle size={19} aria-hidden="true" />
-              채팅하기
+              {createChatRoom.isPending ? '연결 중…' : '채팅하기'}
             </button>
             <button
               className="button button--primary detail-actions__main"

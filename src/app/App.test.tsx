@@ -9,6 +9,7 @@ import {
   useListingFilterStore,
 } from '@/features/listings/model/listingStore'
 import { mockListingRepository } from '@/mocks/listingRepository'
+import { mockChatRepository } from '@/mocks/chatRepository'
 import { mockTradeRepository } from '@/mocks/tradeRepository'
 
 function renderRoute(path: string) {
@@ -24,10 +25,11 @@ function renderRoute(path: string) {
   )
 }
 
-describe('개발자 A 1단계 상품 탐색 흐름', () => {
+describe('개발자 A 핵심 거래 흐름', () => {
   beforeEach(() => {
     mockListingRepository.reset()
     mockTradeRepository.reset()
+    mockChatRepository.reset()
     useListingFilterStore.setState(initialListingFilters)
   })
 
@@ -123,5 +125,26 @@ describe('개발자 A 1단계 상품 탐색 흐름', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '거래 취소' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '거래 완료' })).not.toBeInTheDocument()
+  })
+
+  it('채팅 목록에서 최근 대화와 읽지 않은 메시지를 보여준다', async () => {
+    renderRoute('/chat')
+
+    expect(await screen.findByText('좋아요. 오늘 저녁 7시에 뵐게요!')).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('읽지 않은 메시지 2개'),
+    ).toBeInTheDocument()
+  })
+
+  it('채팅방에서 메시지를 전송하고 HTTP 응답 내용을 표시한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/chat/12')
+
+    const input = await screen.findByRole('textbox', { name: '메시지' })
+    await user.type(input, '제품 상태 확인 감사합니다.')
+    await user.click(screen.getByRole('button', { name: '메시지 보내기' }))
+
+    expect(await screen.findByText('제품 상태 확인 감사합니다.')).toBeInTheDocument()
+    await waitFor(() => expect(input).toHaveValue(''))
   })
 })
