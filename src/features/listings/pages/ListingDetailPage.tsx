@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   ChevronRight,
   Eye,
@@ -12,6 +11,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ListingStatusBadge } from '@/features/listings/components/ListingStatusBadge'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 import { useListing } from '@/features/listings/model/queries'
+import { useSetWish } from '@/features/wishes/model/queries'
 import { ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { useToastStore } from '@/shared/state/toastStore'
@@ -34,7 +34,7 @@ export function ListingDetailPage() {
   const listingId = Number(params.listingId)
   const listingQuery = useListing(listingId)
   const showToast = useToastStore((state) => state.show)
-  const [wishOverride, setWishOverride] = useState<boolean | null>(null)
+  const setWish = useSetWish()
 
   if (listingQuery.isLoading) {
     return (
@@ -55,16 +55,20 @@ export function ListingDetailPage() {
   }
 
   const listing = listingQuery.data
-  const isWished = wishOverride ?? listing.isWished
+  const isWished = listing.isWished
   const canTrade = listing.status === 'ON_SALE' && !listing.isMine
 
   const toggleWish = () => {
     const nextValue = !isWished
-    setWishOverride(nextValue)
-    showToast(
-      nextValue
-        ? '관심 상품에 담았습니다. API 연결은 다음 단계에서 진행합니다.'
-        : '관심 상품에서 제외했습니다.',
+    setWish.mutate(
+      { listingId, wished: nextValue },
+      {
+        onSuccess: () =>
+          showToast(
+            nextValue ? '관심 상품에 담았습니다.' : '관심 상품에서 제외했습니다.',
+          ),
+        onError: () => showToast('관심 상품을 변경하지 못했습니다.'),
+      },
     )
   }
 
@@ -137,7 +141,7 @@ export function ListingDetailPage() {
             <div className="product-stats">
               <span>
                 <Heart size={16} aria-hidden="true" /> 관심{' '}
-                {listing.wishCount + (isWished && !listing.isWished ? 1 : 0)}
+                {listing.wishCount}
               </span>
               <span>
                 <Eye size={16} aria-hidden="true" /> 조회 {listing.viewCount}
@@ -157,6 +161,7 @@ export function ListingDetailPage() {
             className={isWished ? 'wish-button is-active' : 'wish-button'}
             type="button"
             onClick={toggleWish}
+            disabled={setWish.isPending}
             aria-pressed={isWished}
             aria-label={isWished ? '관심 상품 해제' : '관심 상품 등록'}
           >
