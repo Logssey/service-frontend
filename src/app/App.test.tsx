@@ -9,6 +9,7 @@ import {
   useListingFilterStore,
 } from '@/features/listings/model/listingStore'
 import { mockListingRepository } from '@/mocks/listingRepository'
+import { mockTradeRepository } from '@/mocks/tradeRepository'
 
 function renderRoute(path: string) {
   const queryClient = new QueryClient({
@@ -26,6 +27,7 @@ function renderRoute(path: string) {
 describe('개발자 A 1단계 상품 탐색 흐름', () => {
   beforeEach(() => {
     mockListingRepository.reset()
+    mockTradeRepository.reset()
     useListingFilterStore.setState(initialListingFilters)
   })
 
@@ -94,5 +96,32 @@ describe('개발자 A 1단계 상품 탐색 흐름', () => {
       screen.queryByRole('heading', { name: '입문용 미러리스 카메라' }),
     ).not.toBeInTheDocument()
     expect(screen.getByText('관심 상품이 없습니다')).toBeInTheDocument()
+  })
+
+  it('상품 상세에서 거래를 요청하고 구매자용 상세 화면으로 이동한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/listings/101')
+
+    await user.click(await screen.findByRole('button', { name: '거래 요청' }))
+
+    expect(
+      await screen.findByRole('heading', { name: '요청됨' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: '거래 요청 취소' }),
+    ).toBeInTheDocument()
+  })
+
+  it('판매자가 요청된 거래를 승인하면 상태와 액션이 갱신된다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/trades/59')
+
+    await user.click(await screen.findByRole('button', { name: '거래 승인' }))
+
+    expect(
+      await screen.findByRole('heading', { name: '거래 승인' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '거래 취소' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '거래 완료' })).not.toBeInTheDocument()
   })
 })

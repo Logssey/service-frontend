@@ -7,11 +7,12 @@ import {
   ShieldCheck,
   Star,
 } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ListingStatusBadge } from '@/features/listings/components/ListingStatusBadge'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 import { useListing } from '@/features/listings/model/queries'
 import { useSetWish } from '@/features/wishes/model/queries'
+import { useCreateTrade } from '@/features/trades/model/queries'
 import { ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { useToastStore } from '@/shared/state/toastStore'
@@ -31,10 +32,12 @@ const tradeMethodLabels = {
 
 export function ListingDetailPage() {
   const params = useParams()
+  const navigate = useNavigate()
   const listingId = Number(params.listingId)
   const listingQuery = useListing(listingId)
   const showToast = useToastStore((state) => state.show)
   const setWish = useSetWish()
+  const createTrade = useCreateTrade()
 
   if (listingQuery.isLoading) {
     return (
@@ -188,10 +191,26 @@ export function ListingDetailPage() {
             <button
               className="button button--primary detail-actions__main"
               type="button"
-              disabled={!canTrade}
-              onClick={() => showToast('거래 요청은 2단계에서 연결됩니다.')}
+              disabled={!canTrade || createTrade.isPending}
+              onClick={() =>
+                createTrade.mutate(listingId, {
+                  onSuccess: ({ tradeId }) => navigate(`/trades/${tradeId}`),
+                  onError: (error) =>
+                    showToast(
+                      error instanceof Error
+                        ? error.message
+                        : '거래를 요청하지 못했습니다.',
+                    ),
+                })
+              }
             >
-              {canTrade ? '거래 요청' : listing.status === 'RESERVED' ? '예약중' : '거래완료'}
+              {createTrade.isPending
+                ? '요청 중…'
+                : canTrade
+                  ? '거래 요청'
+                  : listing.status === 'RESERVED'
+                    ? '예약중'
+                    : '거래완료'}
             </button>
           </>
         )}
