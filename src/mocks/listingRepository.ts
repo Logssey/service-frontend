@@ -4,6 +4,15 @@ import {
   PRODUCT_SHEET_URL,
 } from '@/mocks/listingFixtures'
 import type {
+  AdminDeleteRequest,
+  AdminListingPage,
+  AdminListingResponse,
+  AdminListingSearchRequest,
+  AdminListingStatusRequest,
+  AdminListingStatusResponse,
+} from '@/features/admin/model/types'
+import { validateModerationReason } from '@/features/admin/model/validation'
+import type {
   ImageUploadResultResponse,
   ListingCreateRequest,
   ListingCreateResponse,
@@ -22,7 +31,48 @@ import type {
 import type { WishResponse } from '@/features/wishes/model/types'
 import { ApiClientError } from '@/shared/api/http'
 
-let listings = structuredClone(listingFixtures)
+interface ListingModerationMetadata {
+  reportCount: number
+  isDeleted: boolean
+  statusBeforeHidden: Exclude<ListingStatus, 'HIDDEN'> | null
+}
+
+const initialReportCounts: Record<number, number> = {
+  101: 2,
+  102: 0,
+  103: 1,
+  104: 0,
+  105: 3,
+  106: 2,
+  107: 4,
+  108: 0,
+  109: 1,
+  110: 0,
+}
+
+function createInitialListings() {
+  const initial = structuredClone(listingFixtures)
+  const hiddenListing = initial.find((listing) => listing.listingId === 107)
+  if (hiddenListing) hiddenListing.status = 'HIDDEN'
+  return initial
+}
+
+function createInitialModerationMetadata() {
+  return new Map<number, ListingModerationMetadata>(
+    listingFixtures.map((listing) => [
+      listing.listingId,
+      {
+        reportCount: initialReportCounts[listing.listingId] ?? 0,
+        isDeleted: listing.listingId === 106,
+        statusBeforeHidden:
+          listing.listingId === 107 ? ('ON_SALE' as const) : null,
+      },
+    ]),
+  )
+}
+
+let listings = createInitialListings()
+let moderationMetadata = createInitialModerationMetadata()
 let nextImageId = 100
 let activeTradeExists: (listingId: number) => boolean = () => false
 let pendingTradeCountForListing: (listingId: number) => number = () => 0
@@ -59,6 +109,29 @@ function cursorToOffset(cursor?: string | null) {
   return Number.isNaN(offset) ? 0 : offset
 }
 
+function getModerationMetadata(listingId: number) {
+  const existing = moderationMetadata.get(listingId)
+  if (existing) return existing
+
+  const created: ListingModerationMetadata = {
+    reportCount: 0,
+    isDeleted: false,
+    statusBeforeHidden: null,
+  }
+  moderationMetadata.set(listingId, created)
+  return created
+}
+
+function isPubliclyVisible(listing: ListingDetailResponse) {
+  const moderation = getModerationMetadata(listing.listingId)
+  return !moderation.isDeleted && listing.status !== 'HIDDEN'
+}
+
+function assertValidModerationReason(reason: string) {
+  const message = validateModerationReason(reason)
+  if (message) throw new ApiClientError(400, 'INVALID_INPUT', message)
+}
+
 function toListingSummary(listing: ListingDetailResponse): ListingSummaryResponse {
   return {
     listingId: listing.listingId,
@@ -91,6 +164,24 @@ function toMyListing(listing: ListingDetailResponse): MyListingResponse {
   }
 }
 
+function toAdminListing(listing: ListingDetailResponse): AdminListingResponse {
+  const moderation = getModerationMetadata(listing.listingId)
+  return {
+    listingId: listing.listingId,
+    title: listing.title,
+    price: listing.price,
+    status: listing.status,
+    seller: {
+      userId: listing.seller.userId,
+      nickname: listing.seller.nickname,
+      profileImageUrl: listing.seller.profileImageUrl,
+    },
+    reportCount: moderation.reportCount,
+    isDeleted: moderation.isDeleted,
+    createdAt: listing.createdAt,
+  }
+}
+
 export const mockListingRepository = {
   async getCategories() {
     await wait(90)
@@ -104,6 +195,7 @@ export const mockListingRepository = {
     const offset = cursorToOffset(request.cursor)
 
     let filtered = listings.filter((listing) => {
+      if (!isPubliclyVisible(listing)) return false
       const matchesKeyword =
         !keyword ||
         `${listing.title} ${listing.description}`
@@ -152,7 +244,7 @@ export const mockListingRepository = {
     await wait()
     const offset = cursorToOffset(cursor)
     const wishedListings = listings
-      .filter((listing) => listing.isWished)
+      .filter((listing) => listing.isWished && isPubliclyVisible(listing))
       .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     const pageItems = wishedListings.slice(offset, offset + size)
     const nextOffset = offset + pageItems.length
@@ -181,7 +273,7 @@ export const mockListingRepository = {
   async getListing(listingId: number): Promise<ListingDetailResponse> {
     await wait(110)
     const listing = listings.find((item) => item.listingId === listingId)
-    if (!listing) {
+    if (!listing || !isPubliclyVisible(listing)) {
       throw new ApiClientError(404, 'NOT_FOUND', '상품을 찾을 수 없습니다.')
     }
     return structuredClone(listing)
@@ -194,7 +286,7 @@ export const mockListingRepository = {
     const offset = cursorToOffset(request.cursor)
     const size = request.size ?? 20
     const filtered = listings
-      .filter((listing) => listing.isMine)
+      .filter((listing) => listing.isMine && isPubliclyVisible(listing))
       .filter((listing) => !request.status || listing.status === request.status)
       .sort(
         (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
@@ -207,6 +299,84 @@ export const mockListingRepository = {
       nextCursor: nextOffset < filtered.length ? btoa(String(nextOffset)) : null,
       hasNext: nextOffset < filtered.length,
     }
+  },
+
+  async getAdminListings(
+    request: AdminListingSearchRequest,
+  ): Promise<AdminListingPage> {
+    await wait()
+    const keyword = request.keyword.trim().toLocaleLowerCase('ko-KR')
+    const offset = cursorToOffset(request.cursor)
+    const size = request.size ?? 20
+    const filtered = listings
+      .filter((listing) => {
+        const moderation = getModerationMetadata(listing.listingId)
+        const matchesKeyword =
+          !keyword || listing.title.toLocaleLowerCase('ko-KR').includes(keyword)
+        const matchesSeller =
+          request.sellerId === null || listing.seller.userId === request.sellerId
+        const matchesStatus =
+          request.status === null ||
+          (request.status === 'DELETED'
+            ? moderation.isDeleted
+            : !moderation.isDeleted && listing.status === request.status)
+        return matchesKeyword && matchesSeller && matchesStatus
+      })
+      .sort(
+        (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
+      )
+    const pageItems = filtered.slice(offset, offset + size)
+    const nextOffset = offset + pageItems.length
+
+    return {
+      items: pageItems.map(toAdminListing),
+      nextCursor: nextOffset < filtered.length ? btoa(String(nextOffset)) : null,
+      hasNext: nextOffset < filtered.length,
+    }
+  },
+
+  async changeAdminListingStatus(
+    listingId: number,
+    request: AdminListingStatusRequest,
+  ): Promise<AdminListingStatusResponse> {
+    await wait(150)
+    assertValidModerationReason(request.reason)
+    const listing = listings.find((item) => item.listingId === listingId)
+    if (!listing) {
+      throw new ApiClientError(404, 'NOT_FOUND', '상품을 찾을 수 없습니다.')
+    }
+    const moderation = getModerationMetadata(listingId)
+    if (moderation.isDeleted) {
+      throw new ApiClientError(409, 'CONFLICT', '삭제된 게시글은 변경할 수 없습니다.')
+    }
+
+    if (request.status === 'HIDDEN') {
+      if (listing.status !== 'HIDDEN') {
+        moderation.statusBeforeHidden = listing.status
+        listing.status = 'HIDDEN'
+      }
+    } else {
+      if (listing.status !== 'HIDDEN') {
+        throw new ApiClientError(409, 'CONFLICT', '숨김 상태의 게시글만 복구할 수 있습니다.')
+      }
+      listing.status = moderation.statusBeforeHidden ?? 'ON_SALE'
+      moderation.statusBeforeHidden = null
+    }
+
+    return { listingId, status: listing.status }
+  },
+
+  async deleteListingAsAdmin(
+    listingId: number,
+    request: AdminDeleteRequest,
+  ): Promise<void> {
+    await wait(150)
+    assertValidModerationReason(request.reason)
+    const listing = listings.find((item) => item.listingId === listingId)
+    if (!listing) {
+      throw new ApiClientError(404, 'NOT_FOUND', '상품을 찾을 수 없습니다.')
+    }
+    getModerationMetadata(listingId).isDeleted = true
   },
 
   async uploadImages(files: File[]): Promise<ImageUploadResultResponse[]> {
@@ -372,11 +542,16 @@ export const mockListingRepository = {
   setListingStatus(listingId: number, status: ListingStatus) {
     const listing = listings.find((item) => item.listingId === listingId)
     if (!listing) throw new Error('상품을 찾을 수 없습니다.')
+    if (listing.status === 'HIDDEN' && status !== 'HIDDEN') {
+      getModerationMetadata(listingId).statusBeforeHidden = status
+      return
+    }
     listing.status = status
   },
 
   reset() {
-    listings = structuredClone(listingFixtures)
+    listings = createInitialListings()
+    moderationMetadata = createInitialModerationMetadata()
     nextImageId = 100
     images = createInitialImages()
   },

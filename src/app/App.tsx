@@ -1,6 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { NotFoundPage } from '@/app/NotFoundPage'
+import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoundary'
+import { AdminLayout } from '@/features/admin/components/AdminLayout'
+import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
 import { ChatRoomPage } from '@/features/chat/pages/ChatRoomPage'
 import { ChatRoomsPage } from '@/features/chat/pages/ChatRoomsPage'
 import { ListingDetailPage } from '@/features/listings/pages/ListingDetailPage'
@@ -40,6 +43,17 @@ export function AppRoutes() {
       <Route path="/chat/:chatRoomId" element={<ChatRoomPage />} />
       <Route path="/chat-rooms" element={<ChatRoomsPage />} />
       <Route path="/chat-rooms/:chatRoomId" element={<ChatRoomPage />} />
+      <Route
+        path="/admin"
+        element={
+          <AdminAccessBoundary>
+            <AdminLayout />
+          </AdminAccessBoundary>
+        }
+      >
+        <Route index element={<Navigate to="listings" replace />} />
+        <Route path="listings" element={<AdminListingsPage />} />
+      </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
