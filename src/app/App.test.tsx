@@ -446,6 +446,73 @@ describe('개발자 A 핵심 거래 흐름', () => {
     ).rejects.toMatchObject({ status: 400, code: 'INVALID_INPUT' })
   })
 
+  it('관리자 거래 내역을 완료 상태로 필터링한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/admin/trades')
+
+    expect(
+      await screen.findByRole('heading', { name: '거래 내역' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '완료' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('row')).toHaveLength(2)
+    })
+    const completedRow = screen.getByRole('row', {
+      name: /#57 태블릿 키보드 케이스 세트/,
+    })
+    expect(within(completedRow).getByText('거래 완료')).toBeInTheDocument()
+    expect(screen.queryByText('빈티지 그린 데스크 램프')).not.toBeInTheDocument()
+  })
+
+  it('관리자 거래 회원 ID를 양수로 검증하고 판매자와 구매자 양쪽에서 조회한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/admin/trades')
+
+    const userIdInput = screen.getByPlaceholderText('판매자 또는 구매자 회원 ID')
+    await user.type(userIdInput, '0')
+    await user.click(screen.getByRole('button', { name: '조회' }))
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '회원 ID는 1 이상의 숫자로 입력해 주세요.',
+    )
+
+    const result = await mockTradeRepository.getAdminTrades({
+      status: null,
+      userId: 3,
+    })
+    expect(result.items.find((trade) => trade.tradeId === 59)?.seller.userId).toBe(3)
+    expect(result.items.find((trade) => trade.tradeId === 55)?.buyer.userId).toBe(3)
+  })
+
+  it('관리자 거래 표는 미완료일과 cursor를 표시하되 조작 기능을 제공하지 않는다', async () => {
+    renderRoute('/admin/trades?status=REQUESTED')
+
+    const table = await screen.findByRole('table', {
+      name: '관리자 거래 내역 조회 결과',
+    })
+    const requestedRow = within(table).getByRole('row', {
+      name: /#59 빈티지 그린 데스크 램프/,
+    })
+    expect(within(requestedRow).getByText('미완료')).toBeInTheDocument()
+    expect(within(table).queryByRole('button')).not.toBeInTheDocument()
+
+    const firstPage = await mockTradeRepository.getAdminTrades({
+      status: null,
+      userId: null,
+      size: 1,
+    })
+    const secondPage = await mockTradeRepository.getAdminTrades({
+      status: null,
+      userId: null,
+      size: 1,
+      cursor: firstPage.nextCursor,
+    })
+    expect(firstPage.hasNext).toBe(true)
+    expect(Date.parse(firstPage.items[0].requestedAt)).toBeGreaterThan(
+      Date.parse(secondPage.items[0].requestedAt),
+    )
+  })
+
   it('채팅 목록에서 최근 대화와 읽지 않은 메시지를 보여준다', async () => {
     renderRoute('/chat')
 

@@ -39,10 +39,15 @@ export function AdminLayout() {
               <PackageSearch size={18} aria-hidden="true" />
               게시글 관리
             </NavLink>
-            <span className="admin-nav__item is-disabled" aria-disabled="true">
+            <NavLink
+              className={({ isActive }) =>
+                isActive ? 'admin-nav__item is-active' : 'admin-nav__item'
+              }
+              to="/admin/trades"
+            >
               <History size={18} aria-hidden="true" />
               거래 내역
-            </span>
+            </NavLink>
           </nav>
         </aside>
         <main className="admin-main">
