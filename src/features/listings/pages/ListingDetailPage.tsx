@@ -6,11 +6,16 @@ import {
   MoreHorizontal,
   ShieldCheck,
   Star,
+  Trash2,
 } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ListingStatusBadge } from '@/features/listings/components/ListingStatusBadge'
 import { ProductImage } from '@/features/listings/components/ProductImage'
-import { useListing } from '@/features/listings/model/queries'
+import {
+  useDeleteListing,
+  useListing,
+} from '@/features/listings/model/queries'
 import { useCreateChatRoom } from '@/features/chat/model/queries'
 import { useSetWish } from '@/features/wishes/model/queries'
 import { useCreateTrade } from '@/features/trades/model/queries'
@@ -40,6 +45,9 @@ export function ListingDetailPage() {
   const setWish = useSetWish()
   const createTrade = useCreateTrade()
   const createChatRoom = useCreateChatRoom()
+  const deleteListing = useDeleteListing()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   if (listingQuery.isLoading) {
     return (
@@ -75,6 +83,24 @@ export function ListingDetailPage() {
         onError: () => showToast('관심 상품을 변경하지 못했습니다.'),
       },
     )
+  }
+
+  const confirmDelete = () => {
+    setDeleteError(null)
+    deleteListing.mutate(listingId, {
+      onSuccess: () => {
+        showToast('상품을 삭제했습니다.')
+        navigate('/', { replace: true })
+      },
+      onError: (error) => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : '상품을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+        setDeleteError(message)
+        showToast(message)
+      },
+    })
   }
 
   return (
@@ -174,12 +200,25 @@ export function ListingDetailPage() {
           </button>
         ) : null}
         {listing.isMine ? (
-          <Link
-            className="button button--primary detail-actions__main"
-            to={`/listings/${listing.listingId}/edit`}
-          >
-            상품 정보 수정
-          </Link>
+          <>
+            <button
+              className="button button--danger-outline detail-actions__delete"
+              type="button"
+              onClick={() => {
+                setDeleteError(null)
+                setDeleteDialogOpen(true)
+              }}
+            >
+              <Trash2 size={18} aria-hidden="true" />
+              상품 삭제
+            </button>
+            <Link
+              className="button button--primary detail-actions__main"
+              to={`/listings/${listing.listingId}/edit`}
+            >
+              상품 정보 수정
+            </Link>
+          </>
         ) : (
           <>
             <button
@@ -228,6 +267,57 @@ export function ListingDetailPage() {
           </>
         )}
       </footer>
+
+      {deleteDialogOpen ? (
+        <div
+          className="confirm-dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !deleteListing.isPending) {
+              setDeleteDialogOpen(false)
+            }
+          }}
+        >
+          <section
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-listing-title"
+            aria-describedby="delete-listing-description"
+          >
+            <span className="confirm-dialog__icon" aria-hidden="true">
+              <Trash2 size={22} />
+            </span>
+            <h2 id="delete-listing-title">상품을 삭제할까요?</h2>
+            <p id="delete-listing-description">
+              삭제한 상품은 다시 복구할 수 없습니다. 진행 중인 거래가 있다면 먼저
+              거래를 종료해야 합니다.
+            </p>
+            {deleteError ? (
+              <p className="confirm-dialog__error" role="alert">
+                {deleteError}
+              </p>
+            ) : null}
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                type="button"
+                disabled={deleteListing.isPending}
+                onClick={() => setDeleteDialogOpen(false)}
+              >
+                취소
+              </button>
+              <button
+                className="button button--danger"
+                type="button"
+                disabled={deleteListing.isPending}
+                onClick={confirmDelete}
+              >
+                {deleteListing.isPending ? '삭제하는 중…' : '삭제하기'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }

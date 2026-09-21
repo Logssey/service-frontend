@@ -2,8 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/app/App'
+import { listingsApi } from '@/features/listings/api/listingsApi'
 import {
   initialListingFilters,
   useListingFilterStore,
@@ -31,7 +32,17 @@ describe('개발자 A 핵심 거래 흐름', () => {
     mockTradeRepository.reset()
     mockChatRepository.reset()
     useListingFilterStore.setState(initialListingFilters)
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:listing-preview'),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
   })
+
+  afterEach(() => vi.restoreAllMocks())
 
   it('홈에서 카테고리와 상품 목록을 불러온다', async () => {
     renderRoute('/')
@@ -146,5 +157,136 @@ describe('개발자 A 핵심 거래 흐름', () => {
 
     expect(await screen.findByText('제품 상태 확인 감사합니다.')).toBeInTheDocument()
     await waitFor(() => expect(input).toHaveValue(''))
+  })
+
+  it('다른 사용자의 상품 상세에는 삭제 액션을 노출하지 않는다', async () => {
+    renderRoute('/listings/101')
+
+    expect(
+      await screen.findByRole('heading', {
+        name: '아이패드 프로 11형 · 키보드 포함',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '상품 삭제' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('진행 중인 거래가 있는 내 상품은 삭제하지 않고 이유를 안내한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/listings/104')
+
+    await user.click(await screen.findByRole('button', { name: '상품 삭제' }))
+    expect(
+      screen.getByRole('dialog', { name: '상품을 삭제할까요?' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '삭제하기' }))
+
+    expect(
+      await screen.findByRole('alert'),
+    ).toHaveTextContent('진행 중인 거래가 있어 상품을 삭제할 수 없습니다.')
+    expect(
+      screen.getByRole('heading', { name: '빈티지 그린 데스크 램프' }),
+    ).toBeInTheDocument()
+  })
+
+  it('거래가 없는 내 상품을 확인 후 삭제하고 목록으로 안전하게 이동한다', async () => {
+    const user = userEvent.setup()
+    const created = await mockListingRepository.createListing({
+      title: '정리할 테스트 상품',
+      description: '삭제 흐름을 확인하기 위한 상품입니다.',
+      price: 10_000,
+      itemCondition: 'USED',
+      tradeMethod: 'DIRECT',
+      categoryId: 1,
+      imageIds: [],
+    })
+    renderRoute(`/listings/${created.listingId}`)
+
+    await user.click(await screen.findByRole('button', { name: '상품 삭제' }))
+    await user.click(screen.getByRole('button', { name: '삭제하기' }))
+
+    expect(
+      await screen.findByRole('heading', { name: '다시 쓰는 좋은 물건' }),
+    ).toBeInTheDocument()
+    await expect(
+      mockListingRepository.getListing(created.listingId),
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('상품 수정에서 기존 사진 제거와 신규 사진 추가 순서를 PATCH imageIds로 저장한다', async () => {
+    const user = userEvent.setup()
+    const [secondImage] = await mockListingRepository.uploadImages([
+      new File(['second'], 'second.webp', { type: 'image/webp' }),
+    ])
+    await mockListingRepository.updateListing(104, {
+      imageIds: [10, secondImage.imageId],
+    })
+    const deleteImage = vi.spyOn(listingsApi, 'deleteImage')
+    const updateListing = vi.spyOn(listingsApi, 'updateListing')
+    renderRoute('/listings/104/edit')
+
+    await user.click(
+      await screen.findByRole('button', { name: '1번째 사진 삭제' }),
+    )
+    await user.upload(
+      screen.getByLabelText('사진 추가'),
+      new File(['new'], 'new.png', { type: 'image/png' }),
+    )
+    expect(screen.getByText('2/5')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '변경사항 저장' }))
+
+    await waitFor(() => expect(updateListing).toHaveBeenCalledTimes(1))
+    expect(updateListing).toHaveBeenCalledWith(
+      104,
+      expect.objectContaining({ imageIds: [secondImage.imageId, 101] }),
+    )
+    expect(deleteImage).not.toHaveBeenCalled()
+    expect(
+      await screen.findByRole('heading', { name: '빈티지 그린 데스크 램프' }),
+    ).toBeInTheDocument()
+  })
+
+  it('업로드 후 게시글 저장이 실패하면 미연결 VERIFIED 이미지를 정리한다', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(listingsApi, 'uploadImages').mockResolvedValue([
+      {
+        imageId: 700,
+        status: 'VERIFIED',
+        url: '/uploaded.webp',
+        thumbnailUrl: '/uploaded-thumb.webp',
+      },
+    ])
+    vi.spyOn(listingsApi, 'createListing').mockRejectedValue(
+      new Error('상품 저장에 실패했습니다.'),
+    )
+    const deleteImage = vi
+      .spyOn(listingsApi, 'deleteImage')
+      .mockResolvedValue(undefined)
+    renderRoute('/listings/new')
+
+    await user.upload(
+      screen.getByLabelText('사진 추가'),
+      new File(['image'], 'listing.jpg', { type: 'image/jpeg' }),
+    )
+    await user.type(
+      screen.getByPlaceholderText('어떤 물건을 판매하시나요?'),
+      '테스트 상품',
+    )
+    await screen.findByRole('option', { name: '디지털기기' })
+    await user.selectOptions(screen.getByRole('combobox'), '1')
+    await user.type(screen.getByPlaceholderText('0'), '12000')
+    await user.type(
+      screen.getByPlaceholderText(
+        '사용 기간, 상태, 구성품 등 구매자에게 필요한 정보를 알려주세요.',
+      ),
+      '업로드 이미지 정리 동작을 확인합니다.',
+    )
+    await user.click(screen.getByRole('button', { name: '상품 등록하기' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '상품 저장에 실패했습니다.',
+    )
+    await waitFor(() => expect(deleteImage).toHaveBeenCalledWith(700))
   })
 })

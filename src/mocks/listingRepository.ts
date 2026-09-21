@@ -15,9 +15,34 @@ import type {
   ListingUpdateRequest,
 } from '@/features/listings/model/types'
 import type { WishResponse } from '@/features/wishes/model/types'
+import { ApiClientError } from '@/shared/api/http'
 
 let listings = structuredClone(listingFixtures)
 let nextImageId = 100
+let activeTradeExists: (listingId: number) => boolean = () => false
+
+interface MockImageRecord extends ImageUploadResultResponse {
+  attachedListingId: number | null
+}
+
+function createInitialImages() {
+  return new Map<number, MockImageRecord>(
+    listingFixtures.flatMap((listing) =>
+      listing.images.map((image) => [
+        image.imageId,
+        {
+          imageId: image.imageId,
+          status: 'VERIFIED' as const,
+          url: image.url,
+          thumbnailUrl: image.url,
+          attachedListingId: listing.listingId,
+        },
+      ] as const),
+    ),
+  )
+}
+
+let images = createInitialImages()
 
 const wait = (milliseconds = 180) =>
   new Promise((resolve) => window.setTimeout(resolve, milliseconds))
@@ -136,7 +161,9 @@ export const mockListingRepository = {
   async getListing(listingId: number): Promise<ListingDetailResponse> {
     await wait(110)
     const listing = listings.find((item) => item.listingId === listingId)
-    if (!listing) throw new Error('상품을 찾을 수 없습니다.')
+    if (!listing) {
+      throw new ApiClientError(404, 'NOT_FOUND', '상품을 찾을 수 없습니다.')
+    }
     return structuredClone(listing)
   },
 
@@ -144,13 +171,37 @@ export const mockListingRepository = {
     await wait(240)
     return files.map(() => {
       const imageId = nextImageId++
-      return {
+      const image: MockImageRecord = {
         imageId,
         status: 'VERIFIED' as const,
         url: PRODUCT_SHEET_URL,
         thumbnailUrl: PRODUCT_SHEET_URL,
+        attachedListingId: null,
+      }
+      images.set(imageId, image)
+      return {
+        imageId: image.imageId,
+        status: image.status,
+        url: image.url,
+        thumbnailUrl: image.thumbnailUrl,
       }
     })
+  },
+
+  async deleteImage(imageId: number): Promise<void> {
+    await wait(100)
+    const image = images.get(imageId)
+    if (!image) {
+      throw new ApiClientError(404, 'NOT_FOUND', '이미지를 찾을 수 없습니다.')
+    }
+    if (image.attachedListingId !== null) {
+      throw new ApiClientError(
+        409,
+        'CONFLICT',
+        '게시글에 연결된 이미지는 상품 수정으로 제거해 주세요.',
+      )
+    }
+    images.delete(imageId)
   },
 
   async createListing(
@@ -188,6 +239,10 @@ export const mockListingRepository = {
       },
       ...listings,
     ]
+    request.imageIds.forEach((imageId) => {
+      const image = images.get(imageId)
+      if (image) image.attachedListingId = listingId
+    })
 
     return { listingId }
   },
@@ -206,22 +261,64 @@ export const mockListingRepository = {
           (item) => item.categoryId === request.categoryId,
         ) ?? current.category)
       : current.category
-    const images = request.imageIds?.length
-      ? request.imageIds.map((imageId, displayOrder) => ({
-          imageId,
-          displayOrder,
-          url: PRODUCT_SHEET_URL,
-        }))
-      : current.images
+    const nextImages =
+      request.imageIds !== undefined
+        ? request.imageIds.map((imageId, displayOrder) => ({
+            imageId,
+            displayOrder,
+            url: images.get(imageId)?.url ?? PRODUCT_SHEET_URL,
+          }))
+        : current.images
+
+    if (request.imageIds !== undefined) {
+      const retainedIds = new Set(request.imageIds)
+      current.images.forEach((image) => {
+        if (!retainedIds.has(image.imageId)) images.delete(image.imageId)
+      })
+      request.imageIds.forEach((imageId) => {
+        const image = images.get(imageId)
+        if (image) image.attachedListingId = listingId
+      })
+    }
 
     const updated: ListingDetailResponse = {
       ...current,
       ...request,
       category,
-      images,
+      images: nextImages,
     }
     listings[index] = updated
     return structuredClone(updated)
+  },
+
+  async deleteListing(listingId: number): Promise<void> {
+    await wait(180)
+    const index = listings.findIndex((item) => item.listingId === listingId)
+    if (index < 0) {
+      throw new ApiClientError(404, 'NOT_FOUND', '상품을 찾을 수 없습니다.')
+    }
+    const listing = listings[index]
+    if (!listing.isMine) {
+      throw new ApiClientError(403, 'FORBIDDEN', '본인의 상품만 삭제할 수 있습니다.')
+    }
+    if (activeTradeExists(listingId)) {
+      throw new ApiClientError(
+        409,
+        'CONFLICT',
+        '진행 중인 거래가 있어 상품을 삭제할 수 없습니다. 거래를 먼저 종료해 주세요.',
+      )
+    }
+
+    listing.images.forEach((image) => images.delete(image.imageId))
+    listings.splice(index, 1)
+  },
+
+  configureActiveTradeLookup(lookup: (listingId: number) => boolean) {
+    activeTradeExists = lookup
+  },
+
+  hasImage(imageId: number) {
+    return images.has(imageId)
   },
 
   setListingStatus(listingId: number, status: ListingStatus) {
@@ -233,5 +330,6 @@ export const mockListingRepository = {
   reset() {
     listings = structuredClone(listingFixtures)
     nextImageId = 100
+    images = createInitialImages()
   },
 }

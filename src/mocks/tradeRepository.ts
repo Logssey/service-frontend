@@ -311,3 +311,7 @@ export const mockTradeRepository = {
     nextTradeId = 60
   },
 }
+
+mockListingRepository.configureActiveTradeLookup(
+  (listingId) => mockTradeRepository.findActiveTradeByListing(listingId) !== null,
+)
