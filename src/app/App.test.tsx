@@ -8,6 +8,7 @@ import {
   initialListingFilters,
   useListingFilterStore,
 } from '@/features/listings/model/listingStore'
+import { mockListingRepository } from '@/mocks/listingRepository'
 
 function renderRoute(path: string) {
   const queryClient = new QueryClient({
@@ -24,6 +25,7 @@ function renderRoute(path: string) {
 
 describe('개발자 A 1단계 상품 탐색 흐름', () => {
   beforeEach(() => {
+    mockListingRepository.reset()
     useListingFilterStore.setState(initialListingFilters)
   })
 
@@ -72,5 +74,25 @@ describe('개발자 A 1단계 상품 탐색 흐름', () => {
     expect(screen.getByText('판매중')).toBeInTheDocument()
     expect(screen.getByText(/거래 23회/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '거래 요청' })).toBeEnabled()
+  })
+
+  it('찜 목록에서 관심 상품을 즉시 제거한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/wishes')
+
+    expect(
+      await screen.findByRole('heading', { name: '입문용 미러리스 카메라' }),
+    ).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '입문용 미러리스 카메라 관심 해제',
+      }),
+    )
+
+    expect(
+      screen.queryByRole('heading', { name: '입문용 미러리스 카메라' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('관심 상품이 없습니다')).toBeInTheDocument()
   })
 })

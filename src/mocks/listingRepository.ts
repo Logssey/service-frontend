@@ -10,8 +10,11 @@ import type {
   ListingDetailResponse,
   ListingPage,
   ListingSearchRequest,
+  ListingStatus,
+  ListingSummaryResponse,
   ListingUpdateRequest,
 } from '@/features/listings/model/types'
+import type { WishResponse } from '@/features/wishes/model/types'
 
 let listings = structuredClone(listingFixtures)
 let nextImageId = 100
@@ -23,6 +26,24 @@ function cursorToOffset(cursor?: string | null) {
   if (!cursor) return 0
   const offset = Number.parseInt(atob(cursor), 10)
   return Number.isNaN(offset) ? 0 : offset
+}
+
+function toListingSummary(listing: ListingDetailResponse): ListingSummaryResponse {
+  return {
+    listingId: listing.listingId,
+    title: listing.title,
+    price: listing.price,
+    status: listing.status,
+    itemCondition: listing.itemCondition,
+    thumbnailUrl: listing.images[0]?.url ?? PRODUCT_SHEET_URL,
+    wishCount: listing.wishCount,
+    seller: {
+      userId: listing.seller.userId,
+      nickname: listing.seller.nickname,
+      profileImageUrl: listing.seller.profileImageUrl,
+    },
+    createdAt: listing.createdAt,
+  }
 }
 
 export const mockListingRepository = {
@@ -76,24 +97,40 @@ export const mockListingRepository = {
     const nextOffset = offset + pageItems.length
 
     return {
-      items: pageItems.map((listing) => ({
-        listingId: listing.listingId,
-        title: listing.title,
-        price: listing.price,
-        status: listing.status,
-        itemCondition: listing.itemCondition,
-        thumbnailUrl: listing.images[0]?.url ?? PRODUCT_SHEET_URL,
-        wishCount: listing.wishCount,
-        seller: {
-          userId: listing.seller.userId,
-          nickname: listing.seller.nickname,
-          profileImageUrl: listing.seller.profileImageUrl,
-        },
-        createdAt: listing.createdAt,
-      })),
+      items: pageItems.map(toListingSummary),
       nextCursor: nextOffset < filtered.length ? btoa(String(nextOffset)) : null,
       hasNext: nextOffset < filtered.length,
     }
+  },
+
+  async getWishes(cursor?: string | null, size = 20): Promise<ListingPage> {
+    await wait()
+    const offset = cursorToOffset(cursor)
+    const wishedListings = listings
+      .filter((listing) => listing.isWished)
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+    const pageItems = wishedListings.slice(offset, offset + size)
+    const nextOffset = offset + pageItems.length
+
+    return {
+      items: pageItems.map(toListingSummary),
+      nextCursor:
+        nextOffset < wishedListings.length ? btoa(String(nextOffset)) : null,
+      hasNext: nextOffset < wishedListings.length,
+    }
+  },
+
+  async setWish(listingId: number, wished: boolean): Promise<WishResponse> {
+    await wait(120)
+    const listing = listings.find((item) => item.listingId === listingId)
+    if (!listing) throw new Error('상품을 찾을 수 없습니다.')
+
+    if (listing.isWished !== wished) {
+      listing.isWished = wished
+      listing.wishCount = Math.max(0, listing.wishCount + (wished ? 1 : -1))
+    }
+
+    return { wished: listing.isWished, wishCount: listing.wishCount }
   },
 
   async getListing(listingId: number): Promise<ListingDetailResponse> {
@@ -185,5 +222,16 @@ export const mockListingRepository = {
     }
     listings[index] = updated
     return structuredClone(updated)
+  },
+
+  setListingStatus(listingId: number, status: ListingStatus) {
+    const listing = listings.find((item) => item.listingId === listingId)
+    if (!listing) throw new Error('상품을 찾을 수 없습니다.')
+    listing.status = status
+  },
+
+  reset() {
+    listings = structuredClone(listingFixtures)
+    nextImageId = 100
   },
 }
