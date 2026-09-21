@@ -45,6 +45,7 @@ export function useCreateTrade() {
     mutationFn: (listingId: number) => tradesApi.createTrade({ listingId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: tradeKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'trades'] })
     },
   })
 }
@@ -68,6 +69,7 @@ export function useChangeTradeStatus() {
       })
       void queryClient.invalidateQueries({ queryKey: listingKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['me'] })
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'trades'] })
     },
   })
 }

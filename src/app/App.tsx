@@ -4,6 +4,7 @@ import { NotFoundPage } from '@/app/NotFoundPage'
 import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoundary'
 import { AdminLayout } from '@/features/admin/components/AdminLayout'
 import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
+import { AdminTradesPage } from '@/features/admin/pages/AdminTradesPage'
 import { ChatRoomPage } from '@/features/chat/pages/ChatRoomPage'
 import { ChatRoomsPage } from '@/features/chat/pages/ChatRoomsPage'
 import { ListingDetailPage } from '@/features/listings/pages/ListingDetailPage'
@@ -53,6 +54,7 @@ export function AppRoutes() {
       >
         <Route index element={<Navigate to="listings" replace />} />
         <Route path="listings" element={<AdminListingsPage />} />
+        <Route path="trades" element={<AdminTradesPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

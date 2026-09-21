@@ -1109,6 +1109,20 @@ button:disabled {
   font-size: 0.72rem;
 }
 
+.admin-trade-table {
+  min-width: 1180px;
+}
+
+.admin-date-cell {
+  min-width: 156px;
+  white-space: nowrap;
+}
+
+.admin-incomplete-date {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
 .admin-deleted-badge,
 .admin-report-count,
 .admin-action-complete {
@@ -2963,6 +2977,10 @@ button:disabled {
 
   .admin-search-form {
     grid-template-columns: minmax(220px, 1fr) 160px auto auto;
+  }
+
+  .admin-search-form--trade {
+    grid-template-columns: minmax(260px, 1fr) auto auto;
   }
 
   .trade-list-content,

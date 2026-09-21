@@ -1,5 +1,10 @@
 import type { UserSummaryResponse } from '@/features/listings/model/types'
 import type {
+  AdminTradePage,
+  AdminTradeResponse,
+  AdminTradeSearchRequest,
+} from '@/features/admin/model/tradeTypes'
+import type {
   ListingBriefResponse,
   TradeAction,
   TradeCreateResponse,
@@ -173,6 +178,19 @@ function toSummary(trade: TradeDetailResponse): TradeSummaryResponse {
   }
 }
 
+function toAdminTrade(trade: TradeDetailResponse): AdminTradeResponse {
+  const summary = toSummary(trade)
+  return {
+    tradeId: trade.tradeId,
+    listing: trade.listing,
+    seller: trade.seller,
+    buyer: trade.buyer,
+    status: trade.status,
+    requestedAt: summary.requestedAt,
+    completedAt: summary.completedAt,
+  }
+}
+
 function assertActionAllowed(trade: TradeDetailResponse, action: TradeAction) {
   const allowed =
     (action === 'accept' && trade.status === 'REQUESTED' && trade.myRole === 'SELLER') ||
@@ -211,6 +229,35 @@ export const mockTradeRepository = {
 
     return {
       items: pageItems.map(toSummary),
+      nextCursor: nextOffset < filtered.length ? btoa(String(nextOffset)) : null,
+      hasNext: nextOffset < filtered.length,
+    }
+  },
+
+  async getAdminTrades(
+    request: AdminTradeSearchRequest,
+  ): Promise<AdminTradePage> {
+    await wait()
+    const offset = cursorToOffset(request.cursor)
+    const size = request.size ?? 20
+    const filtered = trades
+      .filter((trade) => !request.status || trade.status === request.status)
+      .filter(
+        (trade) =>
+          request.userId === null ||
+          trade.seller.userId === request.userId ||
+          trade.buyer.userId === request.userId,
+      )
+      .sort(
+        (left, right) =>
+          Date.parse(toSummary(right).requestedAt) -
+          Date.parse(toSummary(left).requestedAt),
+      )
+    const pageItems = filtered.slice(offset, offset + size)
+    const nextOffset = offset + pageItems.length
+
+    return {
+      items: pageItems.map(toAdminTrade),
       nextCursor: nextOffset < filtered.length ? btoa(String(nextOffset)) : null,
       hasNext: nextOffset < filtered.length,
     }

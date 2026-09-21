@@ -1,6 +1,6 @@
 # Re:Used Frontend
 
-Re:Used 중고거래 서비스의 React SPA입니다. 개발자 A의 카테고리·이미지·게시글부터 찜·거래·채팅까지 목 API로 실행할 수 있습니다.
+Re:Used 중고거래 서비스의 React SPA입니다. 개발자 A의 카테고리·이미지·게시글부터 찜·거래·채팅·관리자 조회까지 목 API로 실행할 수 있습니다.
 
 ## 현재 구현 범위
 
@@ -16,6 +16,8 @@ Re:Used 중고거래 서비스의 React SPA입니다. 개발자 A의 카테고�
 - `REVIEW-001` 완료 거래 후기 작성
 - `SELL-001` 내 판매 게시글과 받은 거래 요청
 - `ME` 받은 후기 조회
+- `ADM-004` 관리자 게시글 조회·숨김·복구·논리 삭제
+- `ADM-006` 관리자 거래 내역 조회
 - 문서 DTO와 동일한 목 repository
 - Presigned URL 기반 이미지 업로드 어댑터
 - 모바일 우선 반응형 레이아웃과 데스크톱 대응
@@ -36,7 +38,7 @@ npm run dev
 
 기본 주소는 `http://localhost:5173`입니다.
 
-주요 화면은 `/`, `/wishes`, `/trades`, `/chat`, `/me`에서 확인할 수 있습니다.
+주요 사용자 화면은 `/`, `/wishes`, `/trades`, `/chat`, `/me`에서 확인할 수 있습니다. 관리자 화면은 `/admin/listings`, `/admin/trades`에서 확인할 수 있으며 현재 ADMIN 권한은 인증 연동 전 목 경계를 사용합니다.
 
 ## 검증
 
