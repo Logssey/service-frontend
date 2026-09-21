@@ -14,12 +14,18 @@ import type {
   ListingSummaryResponse,
   ListingUpdateRequest,
 } from '@/features/listings/model/types'
+import type {
+  MyListingPage,
+  MyListingResponse,
+  MyListingSearchRequest,
+} from '@/features/me/model/types'
 import type { WishResponse } from '@/features/wishes/model/types'
 import { ApiClientError } from '@/shared/api/http'
 
 let listings = structuredClone(listingFixtures)
 let nextImageId = 100
 let activeTradeExists: (listingId: number) => boolean = () => false
+let pendingTradeCountForListing: (listingId: number) => number = () => 0
 
 interface MockImageRecord extends ImageUploadResultResponse {
   attachedListingId: number | null
@@ -67,6 +73,20 @@ function toListingSummary(listing: ListingDetailResponse): ListingSummaryRespons
       nickname: listing.seller.nickname,
       profileImageUrl: listing.seller.profileImageUrl,
     },
+    createdAt: listing.createdAt,
+  }
+}
+
+function toMyListing(listing: ListingDetailResponse): MyListingResponse {
+  return {
+    listingId: listing.listingId,
+    title: listing.title,
+    price: listing.price,
+    status: listing.status,
+    thumbnailUrl: listing.images[0]?.url ?? PRODUCT_SHEET_URL,
+    wishCount: listing.wishCount,
+    viewCount: listing.viewCount,
+    pendingTradeCount: pendingTradeCountForListing(listing.listingId),
     createdAt: listing.createdAt,
   }
 }
@@ -165,6 +185,28 @@ export const mockListingRepository = {
       throw new ApiClientError(404, 'NOT_FOUND', '상품을 찾을 수 없습니다.')
     }
     return structuredClone(listing)
+  },
+
+  async getMySellingListings(
+    request: MyListingSearchRequest,
+  ): Promise<MyListingPage> {
+    await wait()
+    const offset = cursorToOffset(request.cursor)
+    const size = request.size ?? 20
+    const filtered = listings
+      .filter((listing) => listing.isMine)
+      .filter((listing) => !request.status || listing.status === request.status)
+      .sort(
+        (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
+      )
+    const pageItems = filtered.slice(offset, offset + size)
+    const nextOffset = offset + pageItems.length
+
+    return {
+      items: pageItems.map(toMyListing),
+      nextCursor: nextOffset < filtered.length ? btoa(String(nextOffset)) : null,
+      hasNext: nextOffset < filtered.length,
+    }
   },
 
   async uploadImages(files: File[]): Promise<ImageUploadResultResponse[]> {
@@ -315,6 +357,12 @@ export const mockListingRepository = {
 
   configureActiveTradeLookup(lookup: (listingId: number) => boolean) {
     activeTradeExists = lookup
+  },
+
+  configurePendingTradeCountLookup(
+    lookup: (listingId: number) => number,
+  ) {
+    pendingTradeCountForListing = lookup
   },
 
   hasImage(imageId: number) {

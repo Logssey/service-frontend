@@ -302,6 +302,15 @@ export const mockTradeRepository = {
     return trade ? structuredClone(trade) : null
   },
 
+  countPendingSellerTrades(listingId: number) {
+    return trades.filter(
+      (trade) =>
+        trade.listing.listingId === listingId &&
+        trade.myRole === 'SELLER' &&
+        trade.status === 'REQUESTED',
+    ).length
+  },
+
   attachChatRoom(tradeId: number, chatRoomId: number) {
     const trade = trades.find((item) => item.tradeId === tradeId)
     if (trade) trade.chatRoomId = chatRoomId
@@ -323,6 +332,7 @@ export const mockTradeRepository = {
       throw new ApiClientError(409, 'CONFLICT', '이미 후기를 작성했습니다.')
     }
     trade.reviewWritten = true
+    return structuredClone(trade)
   },
 
   reset() {
@@ -333,4 +343,7 @@ export const mockTradeRepository = {
 
 mockListingRepository.configureActiveTradeLookup(
   (listingId) => mockTradeRepository.findActiveTradeByListing(listingId) !== null,
+)
+mockListingRepository.configurePendingTradeCountLookup((listingId) =>
+  mockTradeRepository.countPendingSellerTrades(listingId),
 )

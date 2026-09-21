@@ -15,7 +15,11 @@ export const tradeKeys = {
   detail: (tradeId: number) => [...tradeKeys.all, 'detail', tradeId] as const,
 }
 
-export function useTrades(role: TradeRoleFilter, status: TradeStatus | null) {
+export function useTrades(
+  role: TradeRoleFilter,
+  status: TradeStatus | null,
+  enabled = true,
+) {
   return useInfiniteQuery({
     queryKey: tradeKeys.list(role, status),
     initialPageParam: null as string | null,
@@ -23,6 +27,7 @@ export function useTrades(role: TradeRoleFilter, status: TradeStatus | null) {
       tradesApi.getTrades({ role, status, cursor: pageParam, size: 10 }),
     getNextPageParam: (lastPage) =>
       lastPage.hasNext ? lastPage.nextCursor : undefined,
+    enabled,
   })
 }
 
@@ -62,6 +67,7 @@ export function useChangeTradeStatus() {
         queryKey: tradeKeys.detail(variables.tradeId),
       })
       void queryClient.invalidateQueries({ queryKey: listingKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['me'] })
     },
   })
 }

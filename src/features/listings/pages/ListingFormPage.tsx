@@ -175,7 +175,10 @@ export function ListingFormPage() {
       }
     },
     onSuccess: async ({ listingId: savedListingId }) => {
-      await queryClient.invalidateQueries({ queryKey: listingKeys.all })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: listingKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ['me'] }),
+      ])
       showToast(isEditing ? '상품 정보를 수정했습니다.' : '상품을 등록했습니다.')
       navigate(`/listings/${savedListingId}`, { replace: true })
     },
