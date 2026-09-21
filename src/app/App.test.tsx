@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -289,6 +289,161 @@ describe('개발자 A 핵심 거래 흐름', () => {
     )
     expect(firstPage.hasNext).toBe(true)
     expect(secondPage.items[0].reviewId).not.toBe(firstPage.items[0].reviewId)
+  })
+
+  it('관리자 게시글을 제목과 판매자 ID로 검색하고 cursor로 이어서 조회한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/admin/listings')
+
+    expect(
+      await screen.findByRole('heading', { name: '게시글 관리' }),
+    ).toBeInTheDocument()
+    await user.type(screen.getByPlaceholderText('게시글 제목 검색'), '아이패드')
+    await user.type(screen.getByPlaceholderText('판매자 ID'), '5')
+    await user.click(screen.getByRole('button', { name: '검색' }))
+
+    expect(
+      await screen.findByText('아이패드 프로 11형 · 키보드 포함'),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('입문용 미러리스 카메라')).not.toBeInTheDocument()
+    })
+
+    const firstPage = await mockListingRepository.getAdminListings({
+      status: null,
+      keyword: '',
+      sellerId: null,
+      size: 1,
+    })
+    const secondPage = await mockListingRepository.getAdminListings({
+      status: null,
+      keyword: '',
+      sellerId: null,
+      size: 1,
+      cursor: firstPage.nextCursor,
+    })
+    expect(firstPage.hasNext).toBe(true)
+    expect(secondPage.items[0].listingId).not.toBe(firstPage.items[0].listingId)
+  })
+
+  it('숨김 중 거래 상태는 비공개로 갱신하고 복구 시 최신 상태로 되돌린다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/admin/listings')
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: '빈티지 그린 데스크 램프 숨김',
+      }),
+    )
+    await user.type(
+      screen.getByRole('textbox', { name: '조치 사유' }),
+      '거래 상태 확인을 위한 임시 숨김',
+    )
+    await user.click(screen.getByRole('button', { name: '숨김 적용' }))
+
+    expect(
+      await screen.findByRole('button', {
+        name: '빈티지 그린 데스크 램프 복구',
+      }),
+    ).toBeInTheDocument()
+    await mockTradeRepository.changeStatus(59, 'accept')
+
+    await expect(mockListingRepository.getListing(104)).rejects.toMatchObject({
+      status: 404,
+    })
+    const hiddenMyListings = await mockListingRepository.getMySellingListings({
+      status: null,
+    })
+    expect(hiddenMyListings.items.some((listing) => listing.listingId === 104)).toBe(
+      false,
+    )
+    const hiddenAdminListings = await mockListingRepository.getAdminListings({
+      status: 'HIDDEN',
+      keyword: '',
+      sellerId: null,
+    })
+    expect(
+      hiddenAdminListings.items.find((listing) => listing.listingId === 104)?.status,
+    ).toBe('HIDDEN')
+
+    await user.click(
+      screen.getByRole('button', { name: '빈티지 그린 데스크 램프 복구' }),
+    )
+    await user.type(
+      screen.getByRole('textbox', { name: '조치 사유' }),
+      '검토 완료 후 복구',
+    )
+    await user.click(screen.getByRole('button', { name: '복구 적용' }))
+
+    await waitFor(async () => {
+      expect((await mockListingRepository.getListing(104)).status).toBe('RESERVED')
+    })
+  })
+
+  it('관리자 삭제는 행을 보존한 채 사용자 노출과 추가 조치를 막는다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/admin/listings')
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: '아이패드 프로 11형 · 키보드 포함 삭제',
+      }),
+    )
+    await user.type(
+      screen.getByRole('textbox', { name: '조치 사유' }),
+      '금지 품목 판매로 확인됨',
+    )
+    await user.click(screen.getByRole('button', { name: '삭제 적용' }))
+
+    await waitFor(() => {
+      const row = screen.getByRole('row', {
+        name: /#101 아이패드 프로 11형 · 키보드 포함/,
+      })
+      expect(within(row).getByText('삭제됨')).toBeInTheDocument()
+      expect(within(row).getByText('조치 완료')).toBeInTheDocument()
+      expect(within(row).queryByRole('button')).not.toBeInTheDocument()
+    })
+    await expect(mockListingRepository.getListing(101)).rejects.toMatchObject({
+      status: 404,
+    })
+
+    const deleted = await mockListingRepository.getAdminListings({
+      status: 'DELETED',
+      keyword: '',
+      sellerId: null,
+    })
+    expect(deleted.items.some((listing) => listing.listingId === 101)).toBe(true)
+  })
+
+  it('관리자 조치 사유의 빈 값과 500자 초과를 UI와 mock에서 차단한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/admin/listings')
+
+    await user.click(
+      await screen.findByRole('button', { name: '입문용 미러리스 카메라 숨김' }),
+    )
+    const submit = screen.getByRole('button', { name: '숨김 적용' })
+    expect(submit).toBeDisabled()
+
+    fireEvent.change(screen.getByRole('textbox', { name: '조치 사유' }), {
+      target: { value: '가'.repeat(501) },
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '조치 사유는 500자 이하로 입력해 주세요.',
+    )
+    expect(submit).toBeDisabled()
+
+    await expect(
+      mockListingRepository.changeAdminListingStatus(102, {
+        status: 'HIDDEN',
+        reason: '',
+      }),
+    ).rejects.toMatchObject({ status: 400, code: 'INVALID_INPUT' })
+    await expect(
+      mockListingRepository.deleteListingAsAdmin(102, {
+        reason: '가'.repeat(501),
+      }),
+    ).rejects.toMatchObject({ status: 400, code: 'INVALID_INPUT' })
   })
 
   it('채팅 목록에서 최근 대화와 읽지 않은 메시지를 보여준다', async () => {
