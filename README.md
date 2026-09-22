@@ -13,6 +13,9 @@ Re:Used 중고거래 서비스의 React SPA입니다. 개발자 A의 카테고�
 - `TRADE-002` 거래 상세와 역할별 상태 전이
 - `CHAT-001` 채팅 목록과 미읽음 상태
 - `CHAT-002` 채팅방, 메시지 전송·삭제·읽음 처리
+- `COMM-001` 커뮤니티 게시글 목록·카테고리 필터
+- `COMM-002` 게시글 상세·댓글 작성·삭제
+- `COMM-003` 본인 게시글 작성·수정·삭제
 - `REVIEW-001` 완료 거래 후기 작성
 - `SELL-001` 내 판매 게시글과 받은 거래 요청
 - `ME` 받은 후기 조회
@@ -38,7 +41,7 @@ npm run dev
 
 기본 주소는 `http://localhost:5173`입니다.
 
-주요 사용자 화면은 `/`, `/wishes`, `/trades`, `/chat`, `/me`에서 확인할 수 있습니다. 관리자 화면은 `/admin/listings`, `/admin/trades`에서 확인할 수 있으며 현재 ADMIN 권한은 인증 연동 전 목 경계를 사용합니다.
+주요 사용자 화면은 `/`, `/wishes`, `/trades`, `/chat`, `/community`, `/me`에서 확인할 수 있습니다. 커뮤니티 글은 `/community/new`에서 작성하고 `/community/:postId`에서 조회하며, 본인 글은 `/community/:postId/edit`에서 수정할 수 있습니다. 관리자 화면은 `/admin/listings`, `/admin/trades`에서 확인할 수 있으며 현재 ADMIN 권한은 인증 연동 전 목 경계를 사용합니다.
 
 ## 검증
 
