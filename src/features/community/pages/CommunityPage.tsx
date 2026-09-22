@@ -98,7 +98,7 @@ export function CommunityPage() {
                   {post.isMine ? <span className="community-mine-badge">내 글</span> : null}
                 </span>
                 <h2>{post.title}</h2>
-                <span className="community-post-card__preview">{post.preview}</span>
+                <span className="community-post-card__preview">{post.excerpt}</span>
                 <span className="community-post-card__meta">
                   <span>
                     {post.author.nickname} ·{' '}

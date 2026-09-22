@@ -149,10 +149,10 @@ export function CommunityPostDetailPage() {
             </article>
 
             {isConfirmingDelete ? (
-              <div
+              <section
                 className="community-delete-confirmation"
-                role="alertdialog"
                 aria-labelledby="community-delete-title"
+                aria-live="polite"
               >
                 <strong id="community-delete-title">게시글을 삭제할까요?</strong>
                 <p>게시글과 댓글이 함께 삭제되며 되돌릴 수 없습니다.</p>
@@ -184,7 +184,7 @@ export function CommunityPostDetailPage() {
                     {deletePost.isPending ? '삭제하는 중…' : '삭제하기'}
                   </button>
                 </div>
-              </div>
+              </section>
             ) : null}
 
             <section className="community-comments" aria-labelledby="comments-heading">

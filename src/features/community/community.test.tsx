@@ -96,6 +96,41 @@ describe('커뮤니티 게시판', () => {
     ).toHaveAttribute('href', '/community')
   })
 
+  it('목록과 상세의 로딩·빈 상태·조회 오류를 안내한다', async () => {
+    const getPosts = vi.spyOn(communityApi, 'getPosts').mockResolvedValueOnce({
+      items: [],
+      nextCursor: null,
+      hasNext: false,
+    })
+    renderRoute('/community')
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '커뮤니티 글을 불러오는 중',
+    )
+    expect(
+      await screen.findByText('이 카테고리에는 아직 글이 없어요'),
+    ).toBeInTheDocument()
+
+    cleanup()
+    getPosts.mockRejectedValueOnce(new Error('목록 조회 실패'))
+    renderRoute('/community')
+    expect(
+      await screen.findByRole('alert'),
+    ).toHaveTextContent('커뮤니티 글을 불러오지 못했어요')
+
+    cleanup()
+    vi.spyOn(communityApi, 'getPost').mockRejectedValueOnce(
+      new Error('상세 조회 실패'),
+    )
+    renderRoute('/community/205')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '게시글을 불러오는 중',
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '게시글을 불러오지 못했어요',
+    )
+  })
+
   it('등록 오류에도 입력을 보존하고 다시 제출해 게시글을 만든다', async () => {
     const user = userEvent.setup()
     vi.spyOn(communityApi, 'createPost').mockRejectedValueOnce(
@@ -155,7 +190,7 @@ describe('커뮤니티 게시판', () => {
       }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '삭제' }))
-    const dialog = screen.getByRole('alertdialog', {
+    const dialog = screen.getByRole('region', {
       name: '게시글을 삭제할까요?',
     })
     await user.click(within(dialog).getByRole('button', { name: '삭제하기' }))

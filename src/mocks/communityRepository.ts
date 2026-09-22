@@ -116,7 +116,6 @@ const initialComments: Record<number, CommunityCommentResponse[]> = {
   205: [
     {
       commentId: 502,
-      postId: 205,
       content: '저도 그곳에서 거래했는데 찾기 쉬워서 좋았어요.',
       author: { userId: 8, nickname: '필름한장' },
       isMine: false,
@@ -124,7 +123,6 @@ const initialComments: Record<number, CommunityCommentResponse[]> = {
     },
     {
       commentId: 503,
-      postId: 205,
       content: '주말에도 안내 데스크가 열려 있는지 확인해 봐야겠네요.',
       author: { userId: CURRENT_USER_ID, nickname: '다시쓰는사람' },
       isMine: true,
@@ -134,7 +132,6 @@ const initialComments: Record<number, CommunityCommentResponse[]> = {
   207: [
     {
       commentId: 504,
-      postId: 207,
       content: '구성품을 사진으로 남겨 두는 것도 도움이 됐어요.',
       author: { userId: CURRENT_USER_ID, nickname: '다시쓰는사람' },
       isMine: true,
@@ -198,7 +195,7 @@ function toSummary(
     postId: synchronized.postId,
     category: synchronized.category,
     title: synchronized.title,
-    preview: synchronized.content,
+    excerpt: synchronized.content,
     author: synchronized.author,
     commentCount: synchronized.commentCount,
     viewCount: synchronized.viewCount,
@@ -314,7 +311,6 @@ export const mockCommunityRepository = {
     assertValidComment(request)
     const comment: CommunityCommentResponse = {
       commentId: nextCommentId++,
-      postId,
       content: request.content.trim(),
       author: { userId: CURRENT_USER_ID, nickname: '다시쓰는사람' },
       isMine: true,

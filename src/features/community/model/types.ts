@@ -11,7 +11,7 @@ export interface CommunityPostSummaryResponse {
   postId: number
   category: CommunityCategory
   title: string
-  preview: string
+  excerpt: string
   author: CommunityAuthorResponse
   commentCount: number
   viewCount: number
@@ -21,13 +21,12 @@ export interface CommunityPostSummaryResponse {
 }
 
 export interface CommunityPostDetailResponse
-  extends Omit<CommunityPostSummaryResponse, 'preview'> {
+  extends Omit<CommunityPostSummaryResponse, 'excerpt'> {
   content: string
 }
 
 export interface CommunityCommentResponse {
   commentId: number
-  postId: number
   content: string
   author: CommunityAuthorResponse
   isMine: boolean

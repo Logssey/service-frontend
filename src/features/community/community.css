@@ -482,6 +482,38 @@
   min-height: 48px;
 }
 
+@media (max-width: 420px) {
+  .community-comment > div {
+    display: grid;
+    grid-template-columns: minmax(0, auto) auto 1fr auto;
+    column-gap: 6px;
+    row-gap: 4px;
+  }
+
+  .community-comment strong {
+    max-width: 112px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .community-comment .community-mine-badge {
+    white-space: nowrap;
+  }
+
+  .community-comment time {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    margin-left: 0;
+  }
+
+  .community-comment > div > button {
+    grid-row: 1;
+    grid-column: 4;
+    justify-self: end;
+  }
+}
+
 @media (min-width: 700px) {
   .community-content,
   .community-detail-content {
