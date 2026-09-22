@@ -1,10 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+// 부수효과 import — A의 인증 경계에 실제 토큰 저장소를 연결한다. 지우면 모든 요청이 익명이 된다.
+import '@/app/authWiring'
 import { NotFoundPage } from '@/app/NotFoundPage'
 import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoundary'
 import { AdminLayout } from '@/features/admin/components/AdminLayout'
 import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
 import { AdminTradesPage } from '@/features/admin/pages/AdminTradesPage'
+import { EmailSignupPage } from '@/features/auth/pages/EmailSignupPage'
+import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { OAuthCallbackPage } from '@/features/auth/pages/OAuthCallbackPage'
+import { OnboardingPage } from '@/features/auth/pages/OnboardingPage'
+import { PasswordResetPage } from '@/features/auth/pages/PasswordResetPage'
+import { SplashPage } from '@/features/auth/pages/SplashPage'
 import { ChatRoomPage } from '@/features/chat/pages/ChatRoomPage'
 import { ChatRoomsPage } from '@/features/chat/pages/ChatRoomsPage'
 import { ListingDetailPage } from '@/features/listings/pages/ListingDetailPage'
@@ -30,6 +38,14 @@ const queryClient = new QueryClient({
 export function AppRoutes() {
   return (
     <Routes>
+      {/* 인증 — COM-001, AUTH-001~004 */}
+      <Route path="/splash" element={<SplashPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+      <Route path="/onboarding" element={<OnboardingPage />} />
+      <Route path="/signup/email" element={<EmailSignupPage />} />
+      <Route path="/password/reset" element={<PasswordResetPage />} />
+
       <Route path="/" element={<ListingsPage />} />
       <Route path="/search" element={<ListingSearchPage />} />
       <Route path="/listings/new" element={<ListingFormPage />} />
