@@ -97,7 +97,7 @@ export function CommunityPage() {
                   <CommunityCategoryBadge category={post.category} />
                   {post.isMine ? <span className="community-mine-badge">내 글</span> : null}
                 </span>
-                <strong>{post.title}</strong>
+                <h2>{post.title}</h2>
                 <span className="community-post-card__preview">{post.preview}</span>
                 <span className="community-post-card__meta">
                   <span>

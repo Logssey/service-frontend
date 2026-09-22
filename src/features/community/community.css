@@ -70,8 +70,8 @@
   gap: 7px;
 }
 
-.community-post-card > strong {
-  margin-top: 10px;
+.community-post-card > h2 {
+  margin: 10px 0 0;
   overflow: hidden;
   font-size: 1rem;
   line-height: 1.45;

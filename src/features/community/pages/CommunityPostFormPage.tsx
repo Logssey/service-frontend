@@ -222,18 +222,20 @@ export function CommunityPostFormPage() {
             <label className="field">
               <span className="field__label">제목</span>
               <input
+                aria-label="제목"
                 required
                 minLength={communityLimits.title.min}
                 maxLength={communityLimits.title.max}
                 value={values.title}
                 aria-invalid={Boolean(fieldErrors.title)}
                 aria-describedby={fieldErrors.title ? 'community-title-error' : undefined}
-                onChange={(event) =>
+                onChange={(event) => {
                   setValues((current) => ({
                     ...current,
                     title: event.target.value,
                   }))
-                }
+                  setFieldErrors((current) => ({ ...current, title: null }))
+                }}
                 placeholder="이야기의 제목을 입력해 주세요"
               />
               <span className="field__count">{values.title.length}/100</span>
@@ -247,6 +249,7 @@ export function CommunityPostFormPage() {
             <label className="field">
               <span className="field__label">본문</span>
               <textarea
+                aria-label="본문"
                 required
                 minLength={communityLimits.content.min}
                 maxLength={communityLimits.content.max}
@@ -256,12 +259,13 @@ export function CommunityPostFormPage() {
                 aria-describedby={
                   fieldErrors.content ? 'community-content-error' : undefined
                 }
-                onChange={(event) =>
+                onChange={(event) => {
                   setValues((current) => ({
                     ...current,
                     content: event.target.value,
                   }))
-                }
+                  setFieldErrors((current) => ({ ...current, content: null }))
+                }}
                 placeholder="거래 경험이나 궁금한 점을 구체적으로 적어 주세요."
               />
               <span className="field__count">

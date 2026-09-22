@@ -197,6 +197,7 @@ export function CommunityPostDetailPage() {
                 <label>
                   <span className="sr-only">댓글</span>
                   <textarea
+                    aria-label="댓글"
                     rows={3}
                     required
                     maxLength={communityLimits.comment.max}

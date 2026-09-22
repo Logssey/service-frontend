@@ -98,6 +98,7 @@ export function useCreateCommunityComment(postId: number) {
       })
       void queryClient.invalidateQueries({
         queryKey: communityKeys.detail(postId),
+        exact: true,
       })
       void queryClient.invalidateQueries({ queryKey: communityKeys.lists() })
     },
@@ -115,6 +116,7 @@ export function useDeleteCommunityComment(postId: number) {
       })
       void queryClient.invalidateQueries({
         queryKey: communityKeys.detail(postId),
+        exact: true,
       })
       void queryClient.invalidateQueries({ queryKey: communityKeys.lists() })
     },
