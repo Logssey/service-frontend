@@ -1,4 +1,4 @@
-import { Eye, MessageCircle, MessagesSquare } from 'lucide-react'
+import { Eye, MessageCircle, MessagesSquare, SquarePen } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CommunityCategoryBadge } from '@/features/community/components/CommunityCategoryBadge'
 import {
@@ -28,7 +28,14 @@ export function CommunityPage() {
 
   return (
     <div className="app-page collection-page community-page">
-      <PageHeader title="커뮤니티" />
+      <PageHeader
+        title="커뮤니티"
+        action={
+          <Link className="icon-button" to="/community/new" aria-label="글쓰기">
+            <SquarePen size={20} aria-hidden="true" />
+          </Link>
+        }
+      />
       <main className="content-shell community-content">
         <div className="collection-heading community-heading">
           <div>
@@ -38,7 +45,7 @@ export function CommunityPage() {
             </span>
             <h1>커뮤니티 게시판</h1>
           </div>
-          {!postsQuery.isLoading ? <span>{posts.length}개</span> : null}
+          {!postsQuery.isLoading ? <span>불러온 글 {posts.length}개</span> : null}
         </div>
 
         <nav className="community-category-filter" aria-label="게시글 카테고리">

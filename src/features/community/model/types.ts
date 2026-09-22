@@ -3,7 +3,7 @@ import type { CursorPageResponse } from '@/shared/model/api'
 export type CommunityCategory = 'GENERAL' | 'QUESTION' | 'TIP' | 'SHARE'
 
 export interface CommunityAuthorResponse {
-  userId: number
+  userId: number | null
   nickname: string
 }
 
@@ -38,6 +38,20 @@ export interface CommunityPostSearchRequest {
   category: CommunityCategory | null
   cursor?: string | null
   size?: number
+}
+
+export interface CommunityPostWriteRequest {
+  category: CommunityCategory
+  title: string
+  content: string
+}
+
+export interface CommunityPostCreateResponse {
+  postId: number
+}
+
+export interface CommunityCommentCreateRequest {
+  content: string
 }
 
 export type CommunityPostPage = CursorPageResponse<CommunityPostSummaryResponse>

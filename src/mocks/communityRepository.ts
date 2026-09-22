@@ -1,11 +1,19 @@
 import type {
+  CommunityCommentCreateRequest,
   CommunityCommentPage,
   CommunityCommentResponse,
+  CommunityPostCreateResponse,
   CommunityPostDetailResponse,
   CommunityPostPage,
   CommunityPostSearchRequest,
   CommunityPostSummaryResponse,
+  CommunityPostWriteRequest,
 } from '@/features/community/model/types'
+import {
+  validateCommunityComment,
+  validateCommunityContent,
+  validateCommunityTitle,
+} from '@/features/community/model/validation'
 import { ApiClientError } from '@/shared/api/http'
 
 const CURRENT_USER_ID = 3
@@ -137,6 +145,8 @@ const initialComments: Record<number, CommunityCommentResponse[]> = {
 
 let posts = structuredClone(initialPosts)
 let comments = structuredClone(initialComments)
+let nextPostId = 208
+let nextCommentId = 505
 
 const wait = (milliseconds = 120) =>
   new Promise((resolve) => window.setTimeout(resolve, milliseconds))
@@ -153,6 +163,24 @@ function getPostOrThrow(postId: number) {
     throw new ApiClientError(404, 'NOT_FOUND', '게시글을 찾을 수 없습니다.')
   }
   return post
+}
+
+function assertPostOwner(post: CommunityPostDetailResponse) {
+  if (!post.isMine) {
+    throw new ApiClientError(403, 'FORBIDDEN', '내 게시글만 변경할 수 있습니다.')
+  }
+}
+
+function assertValidPost(request: CommunityPostWriteRequest) {
+  const message =
+    validateCommunityTitle(request.title) ??
+    validateCommunityContent(request.content)
+  if (message) throw new ApiClientError(400, 'INVALID_INPUT', message)
+}
+
+function assertValidComment(request: CommunityCommentCreateRequest) {
+  const message = validateCommunityComment(request.content)
+  if (message) throw new ApiClientError(400, 'INVALID_INPUT', message)
 }
 
 function synchronizeCommentCount(post: CommunityPostDetailResponse) {
@@ -220,7 +248,7 @@ export const mockCommunityRepository = {
     getPostOrThrow(postId)
     const offset = cursorToOffset(cursor)
     const sorted = [...(comments[postId] ?? [])].sort(
-      (left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt),
+      (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
     )
     const pageItems = sorted.slice(offset, offset + size)
     const nextOffset = offset + pageItems.length
@@ -232,8 +260,91 @@ export const mockCommunityRepository = {
     }
   },
 
+  async createPost(
+    request: CommunityPostWriteRequest,
+  ): Promise<CommunityPostCreateResponse> {
+    await wait()
+    assertValidPost(request)
+    const postId = nextPostId++
+    posts.push({
+      postId,
+      category: request.category,
+      title: request.title.trim(),
+      content: request.content.trim(),
+      author: { userId: CURRENT_USER_ID, nickname: '다시쓰는사람' },
+      commentCount: 0,
+      viewCount: 0,
+      isMine: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: null,
+    })
+    comments[postId] = []
+    return { postId }
+  },
+
+  async updatePost(
+    postId: number,
+    request: CommunityPostWriteRequest,
+  ): Promise<CommunityPostDetailResponse> {
+    await wait()
+    const post = getPostOrThrow(postId)
+    assertPostOwner(post)
+    assertValidPost(request)
+    post.category = request.category
+    post.title = request.title.trim()
+    post.content = request.content.trim()
+    post.updatedAt = new Date().toISOString()
+    return structuredClone(synchronizeCommentCount(post))
+  },
+
+  async deletePost(postId: number): Promise<void> {
+    await wait()
+    const post = getPostOrThrow(postId)
+    assertPostOwner(post)
+    posts = posts.filter((item) => item.postId !== postId)
+    delete comments[postId]
+  },
+
+  async createComment(
+    postId: number,
+    request: CommunityCommentCreateRequest,
+  ): Promise<CommunityCommentResponse> {
+    await wait(90)
+    getPostOrThrow(postId)
+    assertValidComment(request)
+    const comment: CommunityCommentResponse = {
+      commentId: nextCommentId++,
+      postId,
+      content: request.content.trim(),
+      author: { userId: CURRENT_USER_ID, nickname: '다시쓰는사람' },
+      isMine: true,
+      createdAt: new Date().toISOString(),
+    }
+    comments[postId] = [...(comments[postId] ?? []), comment]
+    return structuredClone(comment)
+  },
+
+  async deleteComment(postId: number, commentId: number): Promise<void> {
+    await wait(80)
+    getPostOrThrow(postId)
+    const comment = comments[postId]?.find(
+      (item) => item.commentId === commentId,
+    )
+    if (!comment) {
+      throw new ApiClientError(404, 'NOT_FOUND', '댓글을 찾을 수 없습니다.')
+    }
+    if (!comment.isMine) {
+      throw new ApiClientError(403, 'FORBIDDEN', '내 댓글만 삭제할 수 있습니다.')
+    }
+    comments[postId] = (comments[postId] ?? []).filter(
+      (item) => item.commentId !== commentId,
+    )
+  },
+
   reset() {
     posts = structuredClone(initialPosts)
     comments = structuredClone(initialComments)
+    nextPostId = 208
+    nextCommentId = 505
   },
 }

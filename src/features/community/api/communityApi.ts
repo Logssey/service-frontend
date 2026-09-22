@@ -1,8 +1,12 @@
 import type {
+  CommunityCommentCreateRequest,
   CommunityCommentPage,
+  CommunityCommentResponse,
+  CommunityPostCreateResponse,
   CommunityPostDetailResponse,
   CommunityPostPage,
   CommunityPostSearchRequest,
+  CommunityPostWriteRequest,
 } from '@/features/community/model/types'
 import { mockCommunityRepository } from '@/mocks/communityRepository'
 import { apiRequest } from '@/shared/api/http'
@@ -49,6 +53,59 @@ export const communityApi = {
     }
     return apiRequest<CommunityCommentPage>(
       `/community/posts/${postId}/comments?${toCursorSearchParams(cursor, size)}`,
+    )
+  },
+
+  async createPost(
+    request: CommunityPostWriteRequest,
+  ): Promise<CommunityPostCreateResponse> {
+    if (useMocks) return mockCommunityRepository.createPost(request)
+    return apiRequest<CommunityPostCreateResponse>('/community/posts', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  },
+
+  async updatePost(
+    postId: number,
+    request: CommunityPostWriteRequest,
+  ): Promise<CommunityPostDetailResponse> {
+    if (useMocks) return mockCommunityRepository.updatePost(postId, request)
+    return apiRequest<CommunityPostDetailResponse>(
+      `/community/posts/${postId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(request),
+      },
+    )
+  },
+
+  async deletePost(postId: number): Promise<void> {
+    if (useMocks) return mockCommunityRepository.deletePost(postId)
+    return apiRequest<void>(`/community/posts/${postId}`, { method: 'DELETE' })
+  },
+
+  async createComment(
+    postId: number,
+    request: CommunityCommentCreateRequest,
+  ): Promise<CommunityCommentResponse> {
+    if (useMocks) return mockCommunityRepository.createComment(postId, request)
+    return apiRequest<CommunityCommentResponse>(
+      `/community/posts/${postId}/comments`,
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
+    )
+  },
+
+  async deleteComment(postId: number, commentId: number): Promise<void> {
+    if (useMocks) {
+      return mockCommunityRepository.deleteComment(postId, commentId)
+    }
+    return apiRequest<void>(
+      `/community/posts/${postId}/comments/${commentId}`,
+      { method: 'DELETE' },
     )
   },
 }
