@@ -8,6 +8,7 @@ import { listingKeys, useCategories, useListing } from '@/features/listings/mode
 import type {
   ItemCondition,
   ListingCreateRequest,
+  ListingImageResponse,
   ListingUpdateRequest,
   TradeMethod,
 } from '@/features/listings/model/types'
@@ -17,6 +18,13 @@ import { useToastStore } from '@/shared/state/toastStore'
 
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const maxImageSize = 10 * 1024 * 1024
+const maxImageCount = 5
+
+async function cleanupVerifiedImages(imageIds: number[]) {
+  await Promise.allSettled(
+    imageIds.map((imageId) => listingsApi.deleteImage(imageId)),
+  )
+}
 
 interface SelectedImage {
   file: File
@@ -69,20 +77,31 @@ export function ListingFormPage() {
   const listingQuery = useListing(listingId ?? Number.NaN)
   const prefilled = useRef(false)
   const selectedImagesRef = useRef<SelectedImage[]>([])
+  const pendingImageIdsRef = useRef<number[]>([])
+  const isAttachingImagesRef = useRef(false)
+  const isMountedRef = useRef(true)
   const [values, setValues] = useState<FormValues>(initialValues)
+  const [retainedImages, setRetainedImages] = useState<ListingImageResponse[]>([])
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([])
   const [imageError, setImageError] = useState<string | null>(null)
+  const imageCount = retainedImages.length + selectedImages.length
 
   useEffect(() => {
     selectedImagesRef.current = selectedImages
   }, [selectedImages])
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
       selectedImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl))
-    },
-    [],
-  )
+      if (!isAttachingImagesRef.current && pendingImageIdsRef.current.length > 0) {
+        const orphanImageIds = [...pendingImageIdsRef.current]
+        pendingImageIdsRef.current = []
+        void cleanupVerifiedImages(orphanImageIds)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!isEditing || !listingQuery.data || prefilled.current) return
@@ -95,34 +114,71 @@ export function ListingFormPage() {
       tradeMethod: listing.tradeMethod,
       description: listing.description,
     })
+    setRetainedImages(
+      [...listing.images].sort(
+        (left, right) => left.displayOrder - right.displayOrder,
+      ),
+    )
     prefilled.current = true
   }, [isEditing, listingQuery.data])
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const uploaded = selectedImages.length
-        ? await listingsApi.uploadImages(selectedImages.map((image) => image.file))
-        : []
-      const request: ListingCreateRequest = {
-        title: values.title.trim(),
-        description: values.description.trim(),
-        price: Number(values.price),
-        itemCondition: values.itemCondition,
-        tradeMethod: values.tradeMethod,
-        categoryId: Number(values.categoryId),
-        imageIds: uploaded.map((image) => image.imageId),
-      }
+      try {
+        const uploaded = selectedImages.length
+          ? await listingsApi.uploadImages(selectedImages.map((image) => image.file))
+          : []
+        const verifiedImageIds = uploaded
+          .filter((image) => image.status === 'VERIFIED')
+          .map((image) => image.imageId)
+        pendingImageIdsRef.current = verifiedImageIds
 
-      if (listingId !== null) {
-        const updateRequest: ListingUpdateRequest = { ...request }
-        if (!selectedImages.length) delete updateRequest.imageIds
-        const response = await listingsApi.updateListing(listingId, updateRequest)
-        return { listingId: response.listingId }
+        if (uploaded.some((image) => image.status !== 'VERIFIED')) {
+          throw new Error('검증을 통과하지 못한 사진이 있습니다. 다른 사진을 선택해 주세요.')
+        }
+        if (!isMountedRef.current) {
+          throw new Error('상품 저장이 취소되었습니다.')
+        }
+
+        const request: ListingCreateRequest = {
+          title: values.title.trim(),
+          description: values.description.trim(),
+          price: Number(values.price),
+          itemCondition: values.itemCondition,
+          tradeMethod: values.tradeMethod,
+          categoryId: Number(values.categoryId),
+          imageIds: [
+            ...retainedImages.map((image) => image.imageId),
+            ...verifiedImageIds,
+          ],
+        }
+
+        isAttachingImagesRef.current = true
+        if (listingId !== null) {
+          const updateRequest: ListingUpdateRequest = { ...request }
+          const response = await listingsApi.updateListing(listingId, updateRequest)
+          pendingImageIdsRef.current = []
+          return { listingId: response.listingId }
+        }
+        const response = await listingsApi.createListing(request)
+        pendingImageIdsRef.current = []
+        return response
+      } catch (error) {
+        const orphanImageIds = [...pendingImageIdsRef.current]
+        pendingImageIdsRef.current = []
+        if (orphanImageIds.length > 0) {
+          await cleanupVerifiedImages(orphanImageIds)
+        }
+        throw error
+      } finally {
+        isAttachingImagesRef.current = false
       }
-      return listingsApi.createListing(request)
     },
     onSuccess: async ({ listingId: savedListingId }) => {
-      await queryClient.invalidateQueries({ queryKey: listingKeys.all })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: listingKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ['me'] }),
+      ])
       showToast(isEditing ? '상품 정보를 수정했습니다.' : '상품을 등록했습니다.')
       navigate(`/listings/${savedListingId}`, { replace: true })
     },
@@ -133,7 +189,7 @@ export function ListingFormPage() {
     event.target.value = ''
     setImageError(null)
 
-    if (selectedImages.length + files.length > 5) {
+    if (imageCount + files.length > maxImageCount) {
       setImageError('상품 사진은 최대 5장까지 등록할 수 있어요.')
       return
     }
@@ -155,11 +211,19 @@ export function ListingFormPage() {
   }
 
   const removeImage = (index: number) => {
+    setImageError(null)
     setSelectedImages((current) => {
       const target = current[index]
       if (target) URL.revokeObjectURL(target.previewUrl)
       return current.filter((_, imageIndex) => imageIndex !== index)
     })
+  }
+
+  const removeExistingImage = (imageId: number) => {
+    setImageError(null)
+    setRetainedImages((current) =>
+      current.filter((image) => image.imageId !== imageId),
+    )
   }
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -168,7 +232,7 @@ export function ListingFormPage() {
       showToast('카테고리를 선택해 주세요.')
       return
     }
-    void saveMutation.mutateAsync()
+    saveMutation.mutate()
   }
 
   if (isEditing && listingQuery.isLoading) {
@@ -201,34 +265,44 @@ export function ListingFormPage() {
           <section className="form-section image-uploader" aria-labelledby="photo-label">
             <div className="field-heading">
               <h2 id="photo-label">사진</h2>
-              <span>{selectedImages.length}/5</span>
+              <span>{imageCount}/{maxImageCount}</span>
             </div>
             <p className="field-help">첫 번째 사진이 상품 목록의 대표 이미지가 됩니다.</p>
             <div className="image-preview-list">
-              {isEditing && selectedImages.length === 0 && listingQuery.data?.images[0] ? (
-                <div className="image-preview image-preview--existing">
+              {retainedImages.map((image, index) => (
+                <div className="image-preview image-preview--existing" key={image.imageId}>
                   <ProductImage
-                    listingId={listingQuery.data.listingId}
-                    url={listingQuery.data.images[0].url}
-                    alt="현재 대표 상품 사진"
+                    listingId={listingId ?? 0}
+                    url={image.url}
+                    alt={`현재 상품 사진 ${index + 1}`}
                   />
-                  <span>현재 사진</span>
-                </div>
-              ) : null}
-              {selectedImages.map((image, index) => (
-                <div className="image-preview" key={`${image.file.name}-${index}`}>
-                  <img src={image.previewUrl} alt={`선택한 상품 사진 ${index + 1}`} />
                   {index === 0 ? <span>대표</span> : null}
                   <button
                     type="button"
-                    onClick={() => removeImage(index)}
+                    onClick={() => removeExistingImage(image.imageId)}
                     aria-label={`${index + 1}번째 사진 삭제`}
                   >
                     <X size={15} aria-hidden="true" />
                   </button>
                 </div>
               ))}
-              {selectedImages.length < 5 ? (
+              {selectedImages.map((image, index) => (
+                <div className="image-preview" key={`${image.file.name}-${index}`}>
+                  <img
+                    src={image.previewUrl}
+                    alt={`선택한 상품 사진 ${retainedImages.length + index + 1}`}
+                  />
+                  {retainedImages.length + index === 0 ? <span>대표</span> : null}
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    aria-label={`${retainedImages.length + index + 1}번째 사진 삭제`}
+                  >
+                    <X size={15} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+              {imageCount < maxImageCount ? (
                 <label className="image-add-button">
                   <ImagePlus aria-hidden="true" />
                   <span>사진 추가</span>
@@ -381,7 +455,9 @@ export function ListingFormPage() {
 
           {saveMutation.isError ? (
             <p className="form-submit-error" role="alert">
-              등록 중 문제가 생겼습니다. 입력 내용을 확인하고 다시 시도해 주세요.
+              {saveMutation.error instanceof Error
+                ? saveMutation.error.message
+                : '등록 중 문제가 생겼습니다. 입력 내용을 확인하고 다시 시도해 주세요.'}
             </p>
           ) : null}
 

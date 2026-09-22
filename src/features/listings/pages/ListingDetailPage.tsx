@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   ChevronRight,
   Eye,
@@ -7,11 +6,19 @@ import {
   MoreHorizontal,
   ShieldCheck,
   Star,
+  Trash2,
 } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ListingStatusBadge } from '@/features/listings/components/ListingStatusBadge'
 import { ProductImage } from '@/features/listings/components/ProductImage'
-import { useListing } from '@/features/listings/model/queries'
+import {
+  useDeleteListing,
+  useListing,
+} from '@/features/listings/model/queries'
+import { useCreateChatRoom } from '@/features/chat/model/queries'
+import { useSetWish } from '@/features/wishes/model/queries'
+import { useCreateTrade } from '@/features/trades/model/queries'
 import { ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { useToastStore } from '@/shared/state/toastStore'
@@ -31,10 +38,16 @@ const tradeMethodLabels = {
 
 export function ListingDetailPage() {
   const params = useParams()
+  const navigate = useNavigate()
   const listingId = Number(params.listingId)
   const listingQuery = useListing(listingId)
   const showToast = useToastStore((state) => state.show)
-  const [wishOverride, setWishOverride] = useState<boolean | null>(null)
+  const setWish = useSetWish()
+  const createTrade = useCreateTrade()
+  const createChatRoom = useCreateChatRoom()
+  const deleteListing = useDeleteListing()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   if (listingQuery.isLoading) {
     return (
@@ -55,17 +68,39 @@ export function ListingDetailPage() {
   }
 
   const listing = listingQuery.data
-  const isWished = wishOverride ?? listing.isWished
+  const isWished = listing.isWished
   const canTrade = listing.status === 'ON_SALE' && !listing.isMine
 
   const toggleWish = () => {
     const nextValue = !isWished
-    setWishOverride(nextValue)
-    showToast(
-      nextValue
-        ? '관심 상품에 담았습니다. API 연결은 다음 단계에서 진행합니다.'
-        : '관심 상품에서 제외했습니다.',
+    setWish.mutate(
+      { listingId, wished: nextValue },
+      {
+        onSuccess: () =>
+          showToast(
+            nextValue ? '관심 상품에 담았습니다.' : '관심 상품에서 제외했습니다.',
+          ),
+        onError: () => showToast('관심 상품을 변경하지 못했습니다.'),
+      },
     )
+  }
+
+  const confirmDelete = () => {
+    setDeleteError(null)
+    deleteListing.mutate(listingId, {
+      onSuccess: () => {
+        showToast('상품을 삭제했습니다.')
+        navigate('/', { replace: true })
+      },
+      onError: (error) => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : '상품을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+        setDeleteError(message)
+        showToast(message)
+      },
+    })
   }
 
   return (
@@ -137,7 +172,7 @@ export function ListingDetailPage() {
             <div className="product-stats">
               <span>
                 <Heart size={16} aria-hidden="true" /> 관심{' '}
-                {listing.wishCount + (isWished && !listing.isWished ? 1 : 0)}
+                {listing.wishCount}
               </span>
               <span>
                 <Eye size={16} aria-hidden="true" /> 조회 {listing.viewCount}
@@ -157,6 +192,7 @@ export function ListingDetailPage() {
             className={isWished ? 'wish-button is-active' : 'wish-button'}
             type="button"
             onClick={toggleWish}
+            disabled={setWish.isPending}
             aria-pressed={isWished}
             aria-label={isWished ? '관심 상품 해제' : '관심 상품 등록'}
           >
@@ -164,33 +200,124 @@ export function ListingDetailPage() {
           </button>
         ) : null}
         {listing.isMine ? (
-          <Link
-            className="button button--primary detail-actions__main"
-            to={`/listings/${listing.listingId}/edit`}
-          >
-            상품 정보 수정
-          </Link>
+          <>
+            <button
+              className="button button--danger-outline detail-actions__delete"
+              type="button"
+              onClick={() => {
+                setDeleteError(null)
+                setDeleteDialogOpen(true)
+              }}
+            >
+              <Trash2 size={18} aria-hidden="true" />
+              상품 삭제
+            </button>
+            <Link
+              className="button button--primary detail-actions__main"
+              to={`/listings/${listing.listingId}/edit`}
+            >
+              상품 정보 수정
+            </Link>
+          </>
         ) : (
           <>
             <button
               className="button button--secondary detail-actions__chat"
               type="button"
-              onClick={() => showToast('채팅은 2단계에서 연결됩니다.')}
+              disabled={createChatRoom.isPending}
+              onClick={() =>
+                createChatRoom.mutate(listingId, {
+                  onSuccess: ({ chatRoomId }) => navigate(`/chat/${chatRoomId}`),
+                  onError: (error) =>
+                    showToast(
+                      error instanceof Error
+                        ? error.message
+                        : '채팅방을 열지 못했습니다.',
+                    ),
+                })
+              }
             >
               <MessageCircle size={19} aria-hidden="true" />
-              채팅하기
+              {createChatRoom.isPending ? '연결 중…' : '채팅하기'}
             </button>
             <button
               className="button button--primary detail-actions__main"
               type="button"
-              disabled={!canTrade}
-              onClick={() => showToast('거래 요청은 2단계에서 연결됩니다.')}
+              disabled={!canTrade || createTrade.isPending}
+              onClick={() =>
+                createTrade.mutate(listingId, {
+                  onSuccess: ({ tradeId }) => navigate(`/trades/${tradeId}`),
+                  onError: (error) =>
+                    showToast(
+                      error instanceof Error
+                        ? error.message
+                        : '거래를 요청하지 못했습니다.',
+                    ),
+                })
+              }
             >
-              {canTrade ? '거래 요청' : listing.status === 'RESERVED' ? '예약중' : '거래완료'}
+              {createTrade.isPending
+                ? '요청 중…'
+                : canTrade
+                  ? '거래 요청'
+                  : listing.status === 'RESERVED'
+                    ? '예약중'
+                    : '거래완료'}
             </button>
           </>
         )}
       </footer>
+
+      {deleteDialogOpen ? (
+        <div
+          className="confirm-dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !deleteListing.isPending) {
+              setDeleteDialogOpen(false)
+            }
+          }}
+        >
+          <section
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-listing-title"
+            aria-describedby="delete-listing-description"
+          >
+            <span className="confirm-dialog__icon" aria-hidden="true">
+              <Trash2 size={22} />
+            </span>
+            <h2 id="delete-listing-title">상품을 삭제할까요?</h2>
+            <p id="delete-listing-description">
+              삭제한 상품은 다시 복구할 수 없습니다. 진행 중인 거래가 있다면 먼저
+              거래를 종료해야 합니다.
+            </p>
+            {deleteError ? (
+              <p className="confirm-dialog__error" role="alert">
+                {deleteError}
+              </p>
+            ) : null}
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                type="button"
+                disabled={deleteListing.isPending}
+                onClick={() => setDeleteDialogOpen(false)}
+              >
+                취소
+              </button>
+              <button
+                className="button button--danger"
+                type="button"
+                disabled={deleteListing.isPending}
+                onClick={confirmDelete}
+              >
+                {deleteListing.isPending ? '삭제하는 중…' : '삭제하기'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }
