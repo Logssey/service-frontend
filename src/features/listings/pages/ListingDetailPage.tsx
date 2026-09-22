@@ -10,8 +10,8 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ListingImageCarousel } from '@/features/listings/components/ListingImageCarousel'
 import { ListingStatusBadge } from '@/features/listings/components/ListingStatusBadge'
-import { ProductImage } from '@/features/listings/components/ProductImage'
 import {
   useDeleteListing,
   useListing,
@@ -126,15 +126,14 @@ export function ListingDetailPage() {
       />
 
       <main className="detail-shell">
-        <div className="detail-media">
-          <ProductImage
-            className="product-image--detail"
-            listingId={listing.listingId}
-            url={listing.images[0]?.url ?? '/images/marketplace-products.png'}
-            alt={`${listing.title} 상품 사진`}
-          />
-          <span className="image-count">1 / {listing.images.length || 1}</span>
-        </div>
+        <ListingImageCarousel
+          key={`${listing.listingId}:${listing.images
+            .map((image) => `${image.imageId}-${image.displayOrder}`)
+            .join(',')}`}
+          listingId={listing.listingId}
+          title={listing.title}
+          images={listing.images}
+        />
 
         <div className="detail-content">
           <button

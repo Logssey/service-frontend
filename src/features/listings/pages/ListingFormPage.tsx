@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Camera, ImagePlus, LoaderCircle, X } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { listingsApi } from '@/features/listings/api/listingsApi'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 import { listingKeys, useCategories, useListing } from '@/features/listings/model/queries'
@@ -12,7 +12,8 @@ import type {
   ListingUpdateRequest,
   TradeMethod,
 } from '@/features/listings/model/types'
-import { LoadingState } from '@/shared/components/AsyncState'
+import { ApiClientError } from '@/shared/api/http'
+import { EmptyState, ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { useToastStore } from '@/shared/state/toastStore'
 
@@ -66,15 +67,34 @@ const tradeOptions: Array<{
   { value: 'BOTH', label: '둘 다 가능', description: '상대방과 방법을 정해요' },
 ]
 
+function ListingEditNotFound() {
+  return (
+    <div className="app-page">
+      <PageHeader title="상품 수정" />
+      <EmptyState
+        title="상품을 찾을 수 없어요"
+        description="삭제되었거나 존재하지 않는 상품입니다."
+        action={
+          <Link className="button button--secondary" to="/">
+            상품 목록으로
+          </Link>
+        }
+      />
+    </div>
+  )
+}
+
 export function ListingFormPage() {
   const params = useParams()
   const listingId = params.listingId ? Number(params.listingId) : null
   const isEditing = listingId !== null
+  const hasValidListingId =
+    listingId !== null && Number.isSafeInteger(listingId) && listingId > 0
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const showToast = useToastStore((state) => state.show)
   const categoriesQuery = useCategories()
-  const listingQuery = useListing(listingId ?? Number.NaN)
+  const listingQuery = useListing(hasValidListingId ? listingId : Number.NaN)
   const prefilled = useRef(false)
   const selectedImagesRef = useRef<SelectedImage[]>([])
   const pendingImageIdsRef = useRef<number[]>([])
@@ -104,7 +124,7 @@ export function ListingFormPage() {
   }, [])
 
   useEffect(() => {
-    if (!isEditing || !listingQuery.data || prefilled.current) return
+    if (!isEditing || !listingQuery.data?.isMine || prefilled.current) return
     const listing = listingQuery.data
     setValues({
       title: listing.title,
@@ -125,6 +145,13 @@ export function ListingFormPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       try {
+        if (isEditing && !listingQuery.data?.isMine) {
+          throw new ApiClientError(
+            403,
+            'FORBIDDEN',
+            '본인의 상품만 수정할 수 있습니다.',
+          )
+        }
         const uploaded = selectedImages.length
           ? await listingsApi.uploadImages(selectedImages.map((image) => image.file))
           : []
@@ -235,11 +262,59 @@ export function ListingFormPage() {
     saveMutation.mutate()
   }
 
+  if (isEditing && !hasValidListingId) {
+    return <ListingEditNotFound />
+  }
+
   if (isEditing && listingQuery.isLoading) {
     return (
       <div className="app-page">
         <PageHeader title="상품 수정" />
         <LoadingState label="상품 정보를 불러오는 중" />
+      </div>
+    )
+  }
+
+  if (isEditing && listingQuery.isError) {
+    if (
+      listingQuery.error instanceof ApiClientError &&
+      listingQuery.error.status === 404
+    ) {
+      return <ListingEditNotFound />
+    }
+
+    return (
+      <div className="app-page">
+        <PageHeader title="상품 수정" />
+        <ErrorState
+          title="상품 정보를 불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요."
+          retry={() => void listingQuery.refetch()}
+        />
+      </div>
+    )
+  }
+
+  if (isEditing && !listingQuery.data) {
+    return <ListingEditNotFound />
+  }
+
+  if (isEditing && !listingQuery.data?.isMine) {
+    return (
+      <div className="app-page">
+        <PageHeader title="상품 수정" />
+        <EmptyState
+          title="수정할 수 없는 상품이에요"
+          description="본인이 등록한 상품만 수정할 수 있습니다."
+          action={
+            <Link
+              className="button button--secondary"
+              to={`/listings/${listingId}`}
+            >
+              상품 상세로
+            </Link>
+          }
+        />
       </div>
     )
   }
@@ -273,6 +348,7 @@ export function ListingFormPage() {
                 <div className="image-preview image-preview--existing" key={image.imageId}>
                   <ProductImage
                     listingId={listingId ?? 0}
+                    spriteIndex={image.displayOrder}
                     url={image.url}
                     alt={`현재 상품 사진 ${index + 1}`}
                   />

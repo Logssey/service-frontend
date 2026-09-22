@@ -385,12 +385,22 @@ button:disabled {
 }
 
 .product-image {
+  display: block;
   width: 100%;
   aspect-ratio: 1 / 0.84;
+  background-color: #e9eaed;
+  transition: transform 180ms ease;
+}
+
+.product-image--sprite {
   background-image: var(--product-image);
   background-repeat: no-repeat;
   background-size: 200% 200%;
-  transition: transform 180ms ease;
+}
+
+.product-image--asset {
+  object-fit: contain;
+  object-position: center;
 }
 
 .product-image--top-left {
@@ -2408,12 +2418,88 @@ button:disabled {
   background: #e4e5e8;
 }
 
+.listing-carousel:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--brand) 72%, white);
+  outline-offset: -3px;
+}
+
 .product-image--detail {
   aspect-ratio: 1 / 0.92;
 }
 
+.carousel-button {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 23, 29, 0.68);
+  color: white;
+  box-shadow: 0 4px 16px rgba(20, 23, 29, 0.2);
+  transform: translateY(-50%);
+}
+
+.carousel-button:hover:not(:disabled) {
+  background: rgba(20, 23, 29, 0.82);
+}
+
+.carousel-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.carousel-button--previous {
+  left: 14px;
+}
+
+.carousel-button--next {
+  right: 14px;
+}
+
+.carousel-indicators {
+  position: absolute;
+  z-index: 2;
+  bottom: 10px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(-50%);
+}
+
+.carousel-indicator {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+}
+
+.carousel-indicator::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 0 0 1px rgba(20, 23, 29, 0.16);
+  content: '';
+}
+
+.carousel-indicator.is-active::before {
+  width: 9px;
+  height: 9px;
+  background: white;
+}
+
 .image-count {
   position: absolute;
+  z-index: 2;
   right: 14px;
   bottom: 14px;
   min-width: 48px;
@@ -2700,7 +2786,7 @@ button:disabled {
 .image-preview .product-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .image-preview > span {
