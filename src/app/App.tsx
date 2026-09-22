@@ -7,6 +7,8 @@ import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
 import { AdminTradesPage } from '@/features/admin/pages/AdminTradesPage'
 import { ChatRoomPage } from '@/features/chat/pages/ChatRoomPage'
 import { ChatRoomsPage } from '@/features/chat/pages/ChatRoomsPage'
+import { CommunityPage } from '@/features/community/pages/CommunityPage'
+import { CommunityPostDetailPage } from '@/features/community/pages/CommunityPostDetailPage'
 import { ListingDetailPage } from '@/features/listings/pages/ListingDetailPage'
 import { ListingFormPage } from '@/features/listings/pages/ListingFormPage'
 import { ListingSearchPage } from '@/features/listings/pages/ListingSearchPage'
@@ -44,6 +46,8 @@ export function AppRoutes() {
       <Route path="/chat/:chatRoomId" element={<ChatRoomPage />} />
       <Route path="/chat-rooms" element={<ChatRoomsPage />} />
       <Route path="/chat-rooms/:chatRoomId" element={<ChatRoomPage />} />
+      <Route path="/community" element={<CommunityPage />} />
+      <Route path="/community/:postId" element={<CommunityPostDetailPage />} />
       <Route
         path="/admin"
         element={
