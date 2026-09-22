@@ -133,13 +133,17 @@ function assertValidModerationReason(reason: string) {
 }
 
 function toListingSummary(listing: ListingDetailResponse): ListingSummaryResponse {
+  const thumbnail = [...listing.images].sort(
+    (left, right) => left.displayOrder - right.displayOrder,
+  )[0]
+
   return {
     listingId: listing.listingId,
     title: listing.title,
     price: listing.price,
     status: listing.status,
     itemCondition: listing.itemCondition,
-    thumbnailUrl: listing.images[0]?.url ?? PRODUCT_SHEET_URL,
+    thumbnailUrl: thumbnail?.url ?? PRODUCT_SHEET_URL,
     wishCount: listing.wishCount,
     seller: {
       userId: listing.seller.userId,
@@ -465,9 +469,14 @@ export const mockListingRepository = {
   ): Promise<ListingDetailResponse> {
     await wait(240)
     const index = listings.findIndex((item) => item.listingId === listingId)
-    if (index < 0) throw new Error('상품을 찾을 수 없습니다.')
+    if (index < 0) {
+      throw new ApiClientError(404, 'NOT_FOUND', '상품을 찾을 수 없습니다.')
+    }
 
     const current = listings[index]
+    if (!current.isMine) {
+      throw new ApiClientError(403, 'FORBIDDEN', '본인의 상품만 수정할 수 있습니다.')
+    }
     const category = request.categoryId
       ? (categoryFixtures.find(
           (item) => item.categoryId === request.categoryId,

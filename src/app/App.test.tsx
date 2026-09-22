@@ -94,6 +94,58 @@ describe('개발자 A 핵심 거래 흐름', () => {
     expect(screen.getByRole('button', { name: '거래 요청' })).toBeEnabled()
   })
 
+  it('상품 상세의 다중 이미지를 버튼과 키보드로 displayOrder 순서대로 이동한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/listings/101')
+
+    const carousel = await screen.findByRole('region', {
+      name: '아이패드 프로 11형 · 키보드 포함 이미지',
+    })
+    expect(within(carousel).getByText('1 / 5')).toBeInTheDocument()
+    expect(
+      within(carousel)
+        .getByRole('img', { name: /상품 사진 1/ })
+        .getAttribute('style'),
+    ).toContain('#tablet')
+
+    await user.click(within(carousel).getByRole('button', { name: '다음 상품 이미지' }))
+    expect(within(carousel).getByText('2 / 5')).toBeInTheDocument()
+    expect(
+      within(carousel)
+        .getByRole('img', { name: /상품 사진 2/ })
+        .getAttribute('style'),
+    ).toContain('#camera')
+
+    carousel.focus()
+    fireEvent.keyDown(carousel, { key: 'ArrowRight' })
+    expect(within(carousel).getByText('3 / 5')).toBeInTheDocument()
+
+    await user.click(
+      within(carousel).getByRole('button', {
+        name: '5번째 상품 이미지 보기',
+      }),
+    )
+    expect(within(carousel).getByText('5 / 5')).toBeInTheDocument()
+    expect(
+      within(carousel).getByRole('button', { name: '다음 상품 이미지' }),
+    ).toBeDisabled()
+  })
+
+  it('단일 이미지 상품에서는 캐러셀 이동 제어를 숨긴다', async () => {
+    renderRoute('/listings/102')
+
+    const carousel = await screen.findByRole('region', {
+      name: '입문용 미러리스 카메라 이미지',
+    })
+    expect(within(carousel).getByText('1 / 1')).toBeInTheDocument()
+    expect(within(carousel).getByRole('img', { name: /상품 사진 1/ })).toHaveClass(
+      'product-image--top-right',
+    )
+    expect(
+      within(carousel).queryByRole('button', { name: '다음 상품 이미지' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('찜 목록에서 관심 상품을 즉시 제거한다', async () => {
     const user = userEvent.setup()
     renderRoute('/wishes')
@@ -620,6 +672,64 @@ describe('개발자 A 핵심 거래 흐름', () => {
     expect(
       await screen.findByRole('heading', { name: '빈티지 그린 데스크 램프' }),
     ).toBeInTheDocument()
+  })
+
+  it('상품 수정 정보를 불러오는 동안 로딩 상태를 표시한다', async () => {
+    renderRoute('/listings/104/edit')
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '상품 정보를 불러오는 중',
+    )
+    expect(
+      await screen.findByDisplayValue('빈티지 그린 데스크 램프'),
+    ).toBeInTheDocument()
+  })
+
+  it('상품 수정 조회 오류를 안내하고 재시도한다', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(listingsApi, 'getListing').mockRejectedValueOnce(
+      new Error('일시적인 연결 오류'),
+    )
+    renderRoute('/listings/104/edit')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '상품 정보를 불러오지 못했어요',
+    )
+    expect(
+      screen.queryByRole('button', { name: '변경사항 저장' }),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '다시 시도' }))
+    expect(
+      await screen.findByDisplayValue('빈티지 그린 데스크 램프'),
+    ).toBeInTheDocument()
+  })
+
+  it('존재하지 않거나 잘못된 상품 수정 경로는 not-found 상태를 표시한다', async () => {
+    const firstView = renderRoute('/listings/999/edit')
+
+    expect(await screen.findByText('상품을 찾을 수 없어요')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '변경사항 저장' }),
+    ).not.toBeInTheDocument()
+
+    firstView.unmount()
+    renderRoute('/listings/not-a-number/edit')
+    expect(screen.getByText('상품을 찾을 수 없어요')).toBeInTheDocument()
+  })
+
+  it('타인 상품 수정 화면과 mock 수정 API를 모두 차단한다', async () => {
+    renderRoute('/listings/101/edit')
+
+    expect(
+      await screen.findByText('수정할 수 없는 상품이에요'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '변경사항 저장' }),
+    ).not.toBeInTheDocument()
+    await expect(
+      mockListingRepository.updateListing(101, { title: '권한 없는 수정' }),
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
   })
 
   it('업로드 후 게시글 저장이 실패하면 미연결 VERIFIED 이미지를 정리한다', async () => {
