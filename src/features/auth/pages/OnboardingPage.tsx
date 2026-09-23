@@ -70,7 +70,12 @@ export function OnboardingPage() {
     setSubmitting(true)
     setError(null)
     try {
-      const session = await authApi.signup(signupToken, trimmed, true)
+      const session = await authApi.signup({
+        signupToken,
+        nickname: trimmed,
+        termsOfServiceAgreed: termsAgreed,
+        privacyPolicyAgreed: privacyAgreed,
+      })
       completed.current = true
       setSession(session.accessToken, session.user)
       navigate('/', { replace: true })
