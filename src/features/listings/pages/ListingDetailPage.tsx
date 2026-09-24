@@ -68,6 +68,10 @@ export function ListingDetailPage() {
   }
 
   const listing = listingQuery.data
+  const ratingText =
+    listing.seller.averageRating === null
+      ? '없음'
+      : listing.seller.averageRating.toFixed(1)
   const isWished = listing.isWished
   const canTrade = listing.status === 'ON_SALE' && !listing.isMine
 
@@ -148,7 +152,7 @@ export function ListingDetailPage() {
               <strong>{listing.seller.nickname}</strong>
               <span>
                 거래 {listing.seller.completedTradeCount}회 · ★{' '}
-                {listing.seller.averageRating.toFixed(1)}
+                {ratingText}
               </span>
             </span>
             <span className="seller-trust">
@@ -178,7 +182,7 @@ export function ListingDetailPage() {
               </span>
               <span>
                 <Star size={16} aria-hidden="true" /> 평점{' '}
-                {listing.seller.averageRating.toFixed(1)}
+                {ratingText}
               </span>
             </div>
           </article>
