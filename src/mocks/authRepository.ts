@@ -1,17 +1,26 @@
 import type {
+  EmailLoginRequest,
+  EmailSignupRequest,
+  EmailVerificationConfirmRequest,
+  PasswordResetConfirmRequest,
+  PasswordResetRequest,
+} from '@/features/auth/model/emailTypes'
+import type {
   AccessTokenResponse,
   AuthTokenResponse,
-  KakaoLoginResponse,
+  MyProfileResponse,
   NicknameAvailabilityResponse,
+  OAuthLoginResponse,
+  SignupRequest,
   UserSummaryResponse,
 } from '@/features/auth/model/types'
 import { ApiClientError } from '@/shared/api/http'
 
 /**
- * 인증 목 저장소.
+ * 인증 목 저장소. API 명세(05-api/endpoints/auth)의 응답 코드와 정책 값을 그대로 흉내 낸다.
  *
- * 백엔드 대역과 같은 규칙을 따른다 — 인가 코드가 곧 회원번호이므로 같은 코드로 다시
- * 로그인하면 같은 사용자가 된다. 처음 보는 코드는 SIGNUP_REQUIRED다.
+ * 소셜 대역은 인가 코드가 곧 회원번호다. 같은 코드로 다시 로그인하면 같은 사용자가 되고,
+ * 처음 보는 코드는 SIGNUP_REQUIRED다.
  */
 const CURRENT_USER: UserSummaryResponse = {
   userId: 3,
@@ -24,10 +33,8 @@ const initialMembers = new Map<string, UserSummaryResponse>([['local-member', CU
 const takenNicknames = ['재현', '판매왕', '중고왕']
 
 /**
- * 이메일 계정 대역.
- *
- * 비밀번호를 평문으로 들고 있는 것은 목이기 때문이다. 실제 서버는 적응형 단방향 해시로
- * 보관한다(아카이브 NFR-SEC-002).
+ * 이메일 계정 대역. 비밀번호를 평문으로 들고 있는 것은 목이기 때문이다.
+ * 실제 서버는 argon2id로 보관한다(NFR-AUTH-014).
  */
 interface LocalAccount {
   email: string
@@ -45,17 +52,22 @@ const initialLocalAccounts: LocalAccount[] = [
   },
 ]
 
-interface ResetCode {
+export type CodePurpose = 'verify' | 'reset'
+
+interface IssuedCode {
   code: string
   issuedAt: number
   used: boolean
+  attempts: number
 }
 
-const RESET_CODE_TTL_MINUTES = 10
+/** business-rules 4장 정책 값 */
+const CODE_TTL_MINUTES = 10
+const CODE_MAX_ATTEMPTS = 5
 
 let members = new Map(initialMembers)
 let localAccounts = structuredClone(initialLocalAccounts)
-let resetCodes = new Map<string, ResetCode>()
+let codes = new Map<string, IssuedCode>()
 let session: UserSummaryResponse | null = null
 let nextUserId = 4
 
@@ -67,8 +79,12 @@ function issueToken(prefix: string) {
 }
 
 export const mockAuthRepository = {
-  async kakaoLogin(code: string): Promise<KakaoLoginResponse> {
+  async oauthLogin(provider: string, code: string): Promise<OAuthLoginResponse> {
     await wait()
+
+    if (provider !== 'kakao') {
+      throw new ApiClientError(404, 'NOT_FOUND', '지원하지 않는 로그인 제공자입니다.')
+    }
 
     const member = members.get(code)
     if (!member) {
@@ -89,21 +105,24 @@ export const mockAuthRepository = {
     }
   },
 
-  async signup(signupToken: string, nickname: string): Promise<AuthTokenResponse> {
+  async signup(request: SignupRequest): Promise<AuthTokenResponse> {
     await wait()
 
-    if (!signupToken.startsWith('signup-')) {
+    if (!request.signupToken.startsWith('signup-')) {
       throw new ApiClientError(401, 'UNAUTHENTICATED', '가입 토큰이 유효하지 않습니다.')
     }
-    if (this.isNicknameTaken(nickname)) {
+    if (!request.termsOfServiceAgreed || !request.privacyPolicyAgreed) {
+      throw new ApiClientError(400, 'INVALID_INPUT', '필수 약관에 모두 동의해야 합니다.')
+    }
+    if (this.isNicknameTaken(request.nickname)) {
       throw new ApiClientError(409, 'CONFLICT', '이미 사용 중인 닉네임입니다.')
     }
 
     // signupToken은 `signup-{인가코드}.{uuid}` 모양이라 코드를 되찾을 수 있다
-    const code = signupToken.slice('signup-'.length).split('.')[0]
+    const code = request.signupToken.slice('signup-'.length).split('.')[0]
     const created: UserSummaryResponse = {
       userId: nextUserId++,
-      nickname,
+      nickname: request.nickname.trim(),
       profileImageUrl: null,
     }
     members.set(code, created)
@@ -130,6 +149,24 @@ export const mockAuthRepository = {
     return { available: !this.isNicknameTaken(nickname) }
   },
 
+  async me(): Promise<MyProfileResponse> {
+    await wait(80)
+    const current = requireSession()
+    const account = findAccountOf(current)
+    return {
+      userId: current.userId,
+      nickname: current.nickname,
+      profileImageUrl: current.profileImageUrl,
+      bio: null,
+      role: 'USER',
+      status: 'ACTIVE',
+      suspendedUntil: null,
+      provider: account ? 'LOCAL' : 'KAKAO',
+      emailVerified: account?.emailVerified ?? false,
+      createdAt: '2026-01-10T03:00:00Z',
+    }
+  },
+
   isNicknameTaken(nickname: string) {
     const trimmed = nickname.trim()
     if (takenNicknames.includes(trimmed)) return true
@@ -139,52 +176,44 @@ export const mockAuthRepository = {
 
   // ---------- 이메일 계정 (AUTH-001 로그인 · AUTH-003 재설정 · AUTH-004 가입) ----------
 
-  async checkEmail(email: string) {
-    await wait(80)
-    return { available: !localAccounts.some((account) => account.email === normalize(email)) }
-  },
-
-  async emailSignup(
-    email: string,
-    password: string,
-    nickname: string,
-  ): Promise<AuthTokenResponse> {
+  /**
+   * 이메일 중복은 별도 확인 API 없이 여기서 409로만 알린다(NFR-AUTH-018).
+   * 가입 직후 로그인 상태가 되고 소유 확인 코드가 발급된다.
+   */
+  async emailSignup(request: EmailSignupRequest): Promise<AuthTokenResponse> {
     await wait()
 
-    if (localAccounts.some((account) => account.email === normalize(email))) {
+    if (!request.termsOfServiceAgreed || !request.privacyPolicyAgreed) {
+      throw new ApiClientError(400, 'INVALID_INPUT', '필수 약관에 모두 동의해야 합니다.')
+    }
+    const email = normalize(request.email)
+    if (localAccounts.some((account) => account.email === email)) {
       throw new ApiClientError(409, 'CONFLICT', '이미 가입된 이메일입니다.')
     }
-    if (this.isNicknameTaken(nickname)) {
+    if (this.isNicknameTaken(request.nickname)) {
       throw new ApiClientError(409, 'CONFLICT', '이미 사용 중인 닉네임입니다.')
     }
 
     const created: UserSummaryResponse = {
       userId: nextUserId++,
-      nickname: nickname.trim(),
+      nickname: request.nickname.trim(),
       profileImageUrl: null,
     }
-    localAccounts.push({
-      email: normalize(email),
-      password,
-      user: created,
-      emailVerified: false,
-    })
+    localAccounts.push({ email, password: request.password, user: created, emailVerified: false })
     session = created
+    issueCode('verify', email)
 
     return { accessToken: issueToken('access'), user: structuredClone(created) }
   },
 
   /**
-   * 이메일·비밀번호 로그인.
-   *
-   * 이메일이 없는 경우와 비밀번호가 틀린 경우의 응답을 구분하지 않는다.
-   * 계정 존재 여부가 오류 응답으로 드러나지 않아야 한다(아카이브 NFR-SEC-011).
+   * 이메일이 없는 경우와 비밀번호가 틀린 경우의 응답을 구분하지 않는다(NFR-AUTH-018).
    */
-  async emailLogin(email: string, password: string): Promise<AuthTokenResponse> {
+  async emailLogin(request: EmailLoginRequest): Promise<AuthTokenResponse> {
     await wait()
 
-    const account = localAccounts.find((item) => item.email === normalize(email))
-    if (!account || account.password !== password) {
+    const account = localAccounts.find((item) => item.email === normalize(request.email))
+    if (!account || account.password !== request.password) {
       throw new ApiClientError(
         401,
         'UNAUTHENTICATED',
@@ -196,48 +225,121 @@ export const mockAuthRepository = {
     return { accessToken: issueToken('access'), user: structuredClone(account.user) }
   },
 
-  /**
-   * 재설정 코드 발급.
-   *
-   * 실제 서버는 계정이 없어도 성공 응답만 준다. 여기서 코드를 돌려주는 것은 메일 대역이
-   * 없는 로컬에서 화면을 확인하기 위한 것이다.
-   */
-  async requestPasswordReset(email: string) {
+  async resendVerification(): Promise<void> {
     await wait()
-    const code = String(Math.floor(100000 + Math.random() * 900000))
-    resetCodes.set(normalize(email), { code, issuedAt: Date.now(), used: false })
-    return { devCode: code, expiresInMinutes: RESET_CODE_TTL_MINUTES }
+    const account = findAccountOf(requireSession())
+    if (!account) {
+      throw new ApiClientError(409, 'CONFLICT', '소셜 계정은 이메일 소유 확인 대상이 아닙니다.')
+    }
+    if (account.emailVerified) {
+      throw new ApiClientError(409, 'CONFLICT', '이미 소유 확인이 완료된 이메일입니다.')
+    }
+    issueCode('verify', account.email)
   },
 
-  async resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+  async confirmVerification(request: EmailVerificationConfirmRequest): Promise<void> {
     await wait()
-
-    const issued = resetCodes.get(normalize(email))
-    const expired =
-      issued !== undefined &&
-      Date.now() - issued.issuedAt > RESET_CODE_TTL_MINUTES * 60 * 1000
-
-    if (!issued || issued.used || expired || issued.code !== code.trim()) {
-      throw new ApiClientError(400, 'INVALID_INPUT', '인증코드가 올바르지 않거나 만료되었습니다.')
+    const account = findAccountOf(requireSession())
+    if (!account) {
+      throw invalidCode()
     }
+    consumeCode('verify', account.email, request.code)
+    account.emailVerified = true
+  },
 
-    const account = localAccounts.find((item) => item.email === normalize(email))
-    if (account) {
-      account.password = newPassword
+  /** 실제 서버처럼 계정이 없어도 성공으로 끝난다. 코드는 존재하는 계정에만 발급한다. */
+  async requestPasswordReset(request: PasswordResetRequest): Promise<void> {
+    await wait()
+    const email = normalize(request.email)
+    if (localAccounts.some((account) => account.email === email)) {
+      issueCode('reset', email)
     }
-    // 한 번 쓴 코드는 재사용할 수 없다 (아카이브 NFR-SEC-010)
-    issued.used = true
-    // 비밀번호를 바꾸면 기존 세션을 모두 폐기한다 (아카이브 NFR-SEC-009)
+  },
+
+  async confirmPasswordReset(request: PasswordResetConfirmRequest): Promise<void> {
+    await wait()
+    const email = normalize(request.email)
+    const account = localAccounts.find((item) => item.email === email)
+    // 계정이 없으면 코드 불일치와 같은 400이다
+    if (!account) {
+      throw invalidCode()
+    }
+    consumeCode('reset', email, request.code)
+    account.password = request.newPassword
+    // 비밀번호를 바꾸면 기존 세션을 모두 폐기한다(NFR-AUTH-016)
     session = null
+  },
+
+  /**
+   * 실제 서버는 코드를 메일로만 보낸다. 메일 대역이 없는 목 모드에서 화면·테스트가
+   * 코드를 얻는 유일한 통로다. 발급 시 콘솔에도 남긴다.
+   */
+  peekCode(purpose: CodePurpose, email: string): string | null {
+    return codes.get(codeKey(purpose, normalize(email)))?.code ?? null
   },
 
   reset() {
     members = new Map(initialMembers)
     localAccounts = structuredClone(initialLocalAccounts)
-    resetCodes = new Map()
+    codes = new Map()
     session = null
     nextUserId = 4
   },
+}
+
+function requireSession(): UserSummaryResponse {
+  if (!session) {
+    throw new ApiClientError(401, 'UNAUTHENTICATED', '인증이 필요합니다.')
+  }
+  return session
+}
+
+function findAccountOf(user: UserSummaryResponse) {
+  return localAccounts.find((account) => account.user.userId === user.userId)
+}
+
+function issueCode(purpose: CodePurpose, email: string) {
+  const code = String(Math.floor(100000 + Math.random() * 900000))
+  codes.set(codeKey(purpose, email), { code, issuedAt: Date.now(), used: false, attempts: 0 })
+  if (import.meta.env.MODE !== 'test') {
+    console.info(`[mock mail] ${purpose === 'verify' ? '이메일 인증' : '비밀번호 재설정'} 코드 → ${code}`)
+  }
+}
+
+/**
+ * 만료·재사용·불일치를 구분하지 않고 같은 400을 낸다. 코드당 5회를 넘기면 폐기하고 429다(NFR-AUTH-017).
+ */
+function consumeCode(purpose: CodePurpose, email: string, code: string) {
+  const key = codeKey(purpose, email)
+  const issued = codes.get(key)
+  const expired = issued !== undefined && Date.now() - issued.issuedAt > CODE_TTL_MINUTES * 60 * 1000
+
+  if (!issued || issued.used || expired) {
+    throw invalidCode()
+  }
+
+  issued.attempts += 1
+  if (issued.attempts > CODE_MAX_ATTEMPTS) {
+    codes.delete(key)
+    throw new ApiClientError(
+      429,
+      'RATE_LIMITED',
+      '인증 코드 확인 횟수를 초과했습니다. 코드를 다시 요청해 주세요.',
+    )
+  }
+  if (issued.code !== code.trim()) {
+    throw invalidCode()
+  }
+
+  issued.used = true
+}
+
+function invalidCode() {
+  return new ApiClientError(400, 'INVALID_INPUT', '인증 코드가 올바르지 않거나 만료되었습니다.')
+}
+
+function codeKey(purpose: CodePurpose, email: string) {
+  return `${purpose}:${email}`
 }
 
 function normalize(email: string) {

@@ -13,8 +13,9 @@ import { PageHeader } from '@/shared/components/PageHeader'
 /**
  * AUTH-003 비밀번호 재설정.
  *
- * 화면설계서 주석대로 ① 메일 발송 ② 코드 유효 10분 ③ 변경 후 전 세션 만료다.
- * 메일 대역이 없어 발급된 코드를 화면에 표시한다 — 로컬 확인용이다.
+ * ① 이메일로 코드 발송 ② 코드는 10분 유효·1회 사용 ③ 변경 후 전 세션 만료(비밀번호 재설정 명세).
+ * 발송 요청은 계정 유무와 무관하게 성공하므로 화면도 "보냈다"고만 말한다(NFR-AUTH-018).
+ * 코드는 메일 본문에만 있다 — 목 모드에서는 브라우저 콘솔에 찍힌다.
  */
 export function PasswordResetPage() {
   const navigate = useNavigate()
@@ -23,7 +24,7 @@ export function PasswordResetPage() {
   const [code, setCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
-  const [devCode, setDevCode] = useState<string | null>(null)
+  const [sent, setSent] = useState(false)
   const [sending, setSending] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +33,7 @@ export function PasswordResetPage() {
   const confirmMismatch = newPasswordConfirm.length > 0 && newPassword !== newPasswordConfirm
 
   const canSubmit =
+    isEmailShaped(email) &&
     code.trim().length === 6 &&
     isPasswordAcceptable(newPassword) &&
     newPassword === newPasswordConfirm &&
@@ -42,8 +44,10 @@ export function PasswordResetPage() {
     setSending(true)
     setError(null)
     try {
-      const issued = await emailAuthApi.requestPasswordReset(email)
-      setDevCode(issued.devCode)
+      await emailAuthApi.requestPasswordReset({ email: email.trim() })
+      setSent(true)
+    } catch (cause: unknown) {
+      setError(cause instanceof ApiClientError ? cause.message : '발송에 실패했습니다.')
     } finally {
       setSending(false)
     }
@@ -56,7 +60,7 @@ export function PasswordResetPage() {
     setSubmitting(true)
     setError(null)
     try {
-      await emailAuthApi.resetPassword(email, code, newPassword)
+      await emailAuthApi.confirmPasswordReset({ email: email.trim(), code: code.trim(), newPassword })
       navigate('/login', {
         replace: true,
         state: { message: '비밀번호를 변경했습니다. 새 비밀번호로 로그인해 주세요.' },
@@ -93,16 +97,15 @@ export function PasswordResetPage() {
                 disabled={!isEmailShaped(email) || sending}
                 onClick={() => void sendCode()}
               >
-                {sending ? '발송 중…' : '인증코드 보내기'}
+                {sending ? '발송 중…' : sent ? '다시 보내기' : '인증코드 보내기'}
               </button>
             </div>
+            {sent ? (
+              <p className="field-help" role="status">
+                인증코드를 보냈습니다. 메일함을 확인해 주세요. (10분 유효, 1회 사용)
+              </p>
+            ) : null}
           </div>
-
-          {devCode ? (
-            <div className="dev-notice">
-              <p>메일 대역 · 발급된 인증코드 {devCode} (10분 유효, 1회 사용)</p>
-            </div>
-          ) : null}
 
           <div className="field">
             <label className="field__label" htmlFor="reset-code">

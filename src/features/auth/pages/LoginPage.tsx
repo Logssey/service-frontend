@@ -41,7 +41,7 @@ export function LoginPage() {
     setSubmitting(true)
     setError(null)
     try {
-      const session = await emailAuthApi.emailLogin(email, password)
+      const session = await emailAuthApi.emailLogin({ email: email.trim(), password })
       setSession(session.accessToken, session.user)
       navigate('/', { replace: true })
     } catch (cause: unknown) {
@@ -148,9 +148,11 @@ export function LoginPage() {
           </div>
         ) : null}
 
-        <div className="dev-notice">
-          <p>목 계정 · test@reused.dev / test1234</p>
-        </div>
+        {usesAuthMocks ? (
+          <div className="dev-notice">
+            <p>목 계정 · test@reused.dev / test1234</p>
+          </div>
+        ) : null}
 
         <p className="auth-terms">
           로그인 시 서비스 이용약관과

@@ -40,7 +40,7 @@ export function OAuthCallbackPage() {
     }
 
     authApi
-      .kakaoLogin(code, getRedirectUri())
+      .oauthLogin('kakao', { code, redirectUri: getRedirectUri() })
       .then((response) => {
         if (response.status === 'SIGNUP_REQUIRED' && response.signupToken) {
           setSignupToken(response.signupToken)

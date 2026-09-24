@@ -20,6 +20,25 @@ function renderRoute(path: string) {
   )
 }
 
+/** 실제 서버는 코드를 메일로만 보낸다. 테스트는 목의 발급 기록에서 코드를 꺼낸다. */
+function issuedCode(purpose: 'verify' | 'reset', email: string) {
+  const code = mockAuthRepository.peekCode(purpose, email)
+  expect(code).toHaveLength(6)
+  return code ?? ''
+}
+
+async function signUpByEmail(user: ReturnType<typeof userEvent.setup>, email: string, nickname: string) {
+  await user.type(screen.getByLabelText('Email'), email)
+  await user.type(screen.getByLabelText('Password'), 'newpass1234')
+  await user.type(screen.getByLabelText('Password Confirm'), 'newpass1234')
+  await user.type(screen.getByLabelText('Nickname'), nickname)
+  await user.click(screen.getByRole('button', { name: '중복확인' }))
+  expect(await screen.findByText('사용할 수 있는 닉네임입니다')).toBeInTheDocument()
+  await user.click(screen.getByLabelText('[필수] 서비스 이용약관 동의'))
+  await user.click(screen.getByLabelText('[필수] 개인정보 처리방침 동의'))
+  await user.click(screen.getByRole('button', { name: 'Sign Up' }))
+}
+
 describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
   beforeEach(() => {
     mockAuthRepository.reset()
@@ -57,7 +76,7 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
     await user.clear(screen.getByLabelText('Email'))
     await user.type(screen.getByLabelText('Email'), 'nobody@reused.dev')
     await user.click(screen.getByRole('button', { name: 'Log In' }))
-    // 계정 존재 여부가 오류 메시지로 드러나지 않아야 한다
+    // 계정 존재 여부가 오류 메시지로 드러나지 않아야 한다(NFR-AUTH-018)
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '이메일 또는 비밀번호가 올바르지 않습니다.',
     )
@@ -74,22 +93,16 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'text')
   })
 
-  it('AUTH-004 이메일 가입은 중복확인 2건과 약관 2건을 모두 통과해야 열린다', async () => {
+  it('AUTH-004 이메일 가입은 닉네임 중복확인과 약관 2건을 통과해야 열리고, 가입 후 이메일 인증 화면으로 간다', async () => {
     const user = userEvent.setup()
     renderRoute('/signup/email')
 
     const submit = () => screen.getByRole('button', { name: 'Sign Up' })
     expect(submit()).toBeDisabled()
+    // 이메일에는 중복확인 버튼이 없다 — 가입 여부가 드러나면 안 되므로 닉네임 것 하나만 있다
+    expect(screen.getAllByRole('button', { name: '중복확인' })).toHaveLength(1)
 
-    // 이미 가입된 이메일
-    await user.type(screen.getByLabelText('Email'), 'test@reused.dev')
-    await user.click(screen.getAllByRole('button', { name: '중복확인' })[0])
-    expect(await screen.findByText('* 이미 가입된 이메일입니다')).toBeInTheDocument()
-
-    await user.clear(screen.getByLabelText('Email'))
     await user.type(screen.getByLabelText('Email'), 'new@reused.dev')
-    await user.click(screen.getAllByRole('button', { name: '중복확인' })[0])
-    expect(await screen.findByText('사용할 수 있는 이메일입니다')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Password'), 'short')
     expect(screen.getByText('* 비밀번호는 8자 이상이어야 합니다')).toBeInTheDocument()
@@ -103,7 +116,7 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
     await user.type(screen.getByLabelText('Password Confirm'), 'newpass1234')
 
     await user.type(screen.getByLabelText('Nickname'), '새사용자')
-    await user.click(screen.getAllByRole('button', { name: '중복확인' })[1])
+    await user.click(screen.getByRole('button', { name: '중복확인' }))
     expect(await screen.findByText('사용할 수 있는 닉네임입니다')).toBeInTheDocument()
 
     expect(submit()).toBeDisabled()
@@ -113,9 +126,62 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
 
     await user.click(submit())
     expect(
-      await screen.findByRole('heading', { name: '다시 쓰는 좋은 물건' }),
+      await screen.findByRole('heading', { name: '메일로 보낸 인증코드를 입력해 주세요' }),
     ).toBeInTheDocument()
     expect(useAuthStore.getState().user?.nickname).toBe('새사용자')
+  })
+
+  it('AUTH-004 이미 가입된 이메일은 가입 요청의 409로만 알린다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/signup/email')
+
+    await signUpByEmail(user, 'test@reused.dev', '새사용자')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('이미 가입된 이메일입니다.')
+    expect(useAuthStore.getState().accessToken).toBeNull()
+  })
+
+  it('AUTH-004 가입 직후 발송된 코드로 이메일 소유를 확인한다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/signup/email')
+    await signUpByEmail(user, 'new@reused.dev', '새사용자')
+    await screen.findByRole('heading', { name: '메일로 보낸 인증코드를 입력해 주세요' })
+
+    await user.type(screen.getByLabelText('인증코드'), issuedCode('verify', 'new@reused.dev'))
+    await user.click(screen.getByRole('button', { name: '인증하기' }))
+
+    expect(
+      await screen.findByRole('heading', { name: '이메일 인증이 완료되었습니다' }),
+    ).toBeInTheDocument()
+  })
+
+  it('AUTH-004 틀린 인증코드는 거부하고, 다시 보내기로 새 코드를 받을 수 있다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/signup/email')
+    await signUpByEmail(user, 'new@reused.dev', '새사용자')
+    await screen.findByRole('heading', { name: '메일로 보낸 인증코드를 입력해 주세요' })
+
+    const first = issuedCode('verify', 'new@reused.dev')
+    await user.type(screen.getByLabelText('인증코드'), first === '000000' ? '000001' : '000000')
+    await user.click(screen.getByRole('button', { name: '인증하기' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '인증 코드가 올바르지 않거나 만료되었습니다.',
+    )
+
+    await user.click(screen.getByRole('button', { name: '다시 보내기' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('인증코드를 다시 보냈습니다.')
+
+    await user.type(screen.getByLabelText('인증코드'), issuedCode('verify', 'new@reused.dev'))
+    await user.click(screen.getByRole('button', { name: '인증하기' }))
+    expect(
+      await screen.findByRole('heading', { name: '이메일 인증이 완료되었습니다' }),
+    ).toBeInTheDocument()
+  })
+
+  it('AUTH-004 이메일 인증 화면은 비로그인이면 로그인으로 보낸다', async () => {
+    renderRoute('/verify-email')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('로그인이 필요합니다.')
   })
 
   it('AUTH-003 인증코드로 비밀번호를 바꾸고 새 비밀번호로 로그인한다', async () => {
@@ -124,12 +190,11 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
 
     await user.type(screen.getByLabelText('Email'), 'test@reused.dev')
     await user.click(screen.getByRole('button', { name: '인증코드 보내기' }))
+    // 코드는 화면에 노출되지 않고 메일로만 간다
+    expect(await screen.findByRole('status')).toHaveTextContent('인증코드를 보냈습니다.')
+    expect(screen.queryByText(/발급된 인증코드/)).not.toBeInTheDocument()
 
-    const notice = await screen.findByText(/발급된 인증코드/)
-    const issued = notice.textContent?.match(/\d{6}/)?.[0] ?? ''
-    expect(issued).toHaveLength(6)
-
-    await user.type(screen.getByLabelText('인증코드'), issued)
+    await user.type(screen.getByLabelText('인증코드'), issuedCode('reset', 'test@reused.dev'))
     await user.type(screen.getByLabelText('새 비밀번호'), 'brandnew1234')
     await user.type(screen.getByLabelText('새 비밀번호 확인'), 'brandnew1234')
     await user.click(screen.getByRole('button', { name: '변경하기' }))
@@ -146,13 +211,25 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
     ).toBeInTheDocument()
   })
 
+  it('AUTH-003 가입되지 않은 이메일도 발송 요청은 성공으로 보인다', async () => {
+    const user = userEvent.setup()
+    renderRoute('/password/reset')
+
+    await user.type(screen.getByLabelText('Email'), 'nobody@reused.dev')
+    await user.click(screen.getByRole('button', { name: '인증코드 보내기' }))
+
+    // 계정 유무가 화면 응답으로 드러나지 않는다(NFR-AUTH-018)
+    expect(await screen.findByRole('status')).toHaveTextContent('인증코드를 보냈습니다.')
+    expect(mockAuthRepository.peekCode('reset', 'nobody@reused.dev')).toBeNull()
+  })
+
   it('AUTH-003 틀린 인증코드는 거부한다', async () => {
     const user = userEvent.setup()
     renderRoute('/password/reset')
 
     await user.type(screen.getByLabelText('Email'), 'test@reused.dev')
     await user.click(screen.getByRole('button', { name: '인증코드 보내기' }))
-    await screen.findByText(/발급된 인증코드/)
+    await screen.findByRole('status')
 
     await user.type(screen.getByLabelText('인증코드'), '000000')
     await user.type(screen.getByLabelText('새 비밀번호'), 'brandnew1234')
@@ -160,7 +237,7 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
     await user.click(screen.getByRole('button', { name: '변경하기' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      '인증코드가 올바르지 않거나 만료되었습니다.',
+      '인증 코드가 올바르지 않거나 만료되었습니다.',
     )
   })
 })

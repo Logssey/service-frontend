@@ -2,35 +2,39 @@ import { usesAuthMocks } from '@/features/auth/lib/authMode'
 import type {
   AccessTokenResponse,
   AuthTokenResponse,
-  KakaoLoginResponse,
+  MyProfileResponse,
   NicknameAvailabilityResponse,
+  OAuthLoginRequest,
+  OAuthLoginResponse,
+  OAuthProvider,
+  SignupRequest,
 } from '@/features/auth/model/types'
 import { mockAuthRepository } from '@/mocks/authRepository'
 import { apiRequest } from '@/shared/api/http'
 
+/**
+ * 소셜 인증·세션·본인 정보 API(05-api/endpoints/auth, users).
+ * 이메일 계정 전용 호출은 emailAuthApi에 있다.
+ */
 export const authApi = {
-  /** AUTH-001 · POST /auth/kakao */
-  async kakaoLogin(code: string, redirectUri: string): Promise<KakaoLoginResponse> {
-    if (usesAuthMocks) return mockAuthRepository.kakaoLogin(code)
+  /** AUTH-001 · POST /auth/oauth/{provider} — 제공자를 경로 변수로 받는다(ADR-016). */
+  async oauthLogin(provider: OAuthProvider, request: OAuthLoginRequest): Promise<OAuthLoginResponse> {
+    if (usesAuthMocks) return mockAuthRepository.oauthLogin(provider, request.code)
 
-    return apiRequest<KakaoLoginResponse>(
-      '/auth/kakao',
-      { method: 'POST', body: JSON.stringify({ code, redirectUri }) },
+    return apiRequest<OAuthLoginResponse>(
+      `/auth/oauth/${provider}`,
+      { method: 'POST', body: JSON.stringify(request) },
       { skipAuthRecovery: true },
     )
   },
 
-  /** AUTH-002 · POST /auth/signup */
-  async signup(
-    signupToken: string,
-    nickname: string,
-    termsAgreed: boolean,
-  ): Promise<AuthTokenResponse> {
-    if (usesAuthMocks) return mockAuthRepository.signup(signupToken, nickname)
+  /** AUTH-002 · POST /auth/signup — signupToken으로 온보딩을 확정한다. */
+  async signup(request: SignupRequest): Promise<AuthTokenResponse> {
+    if (usesAuthMocks) return mockAuthRepository.signup(request)
 
     return apiRequest<AuthTokenResponse>(
       '/auth/signup',
-      { method: 'POST', body: JSON.stringify({ signupToken, nickname, termsAgreed }) },
+      { method: 'POST', body: JSON.stringify(request) },
       { skipAuthRecovery: true },
     )
   },
@@ -61,5 +65,11 @@ export const authApi = {
     return apiRequest<NicknameAvailabilityResponse>(
       `/users/nickname/check?nickname=${encodeURIComponent(nickname)}`,
     )
+  },
+
+  /** GET /users/me — 인증 수단과 이메일 소유 확인 여부를 알려준다. */
+  async me(): Promise<MyProfileResponse> {
+    if (usesAuthMocks) return mockAuthRepository.me()
+    return apiRequest<MyProfileResponse>('/users/me')
   },
 }

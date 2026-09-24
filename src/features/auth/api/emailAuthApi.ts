@@ -1,48 +1,82 @@
+import { usesAuthMocks } from '@/features/auth/lib/authMode'
 import type {
   AuthTokenResponse,
-  EmailAvailabilityResponse,
-  PasswordResetCodeResponse,
+  EmailLoginRequest,
+  EmailSignupRequest,
+  EmailVerificationConfirmRequest,
+  PasswordResetConfirmRequest,
+  PasswordResetRequest,
 } from '@/features/auth/model/emailTypes'
 import { mockAuthRepository } from '@/mocks/authRepository'
+import { apiRequest } from '@/shared/api/http'
 
 /**
- * 이메일 계정 인증 — 화면 확인용 목 전용.
+ * 이메일 계정 인증 API(05-api/endpoints/auth).
  *
- * 백엔드에 아직 해당 엔드포인트가 없어 실제 호출 분기를 두지 않았다. 구현되면
- * authApi처럼 `usesAuthMocks` 분기를 넣고 아래 주석의 경로를 연결한다.
- * 지금 분기를 넣으면 VITE_USE_MOCKS_AUTH=false인 환경에서 404를 받는다.
- *
- * 예정 경로
- *   POST /api/v1/auth/email/signup
- *   POST /api/v1/auth/email/login
- *   POST /api/v1/auth/password/reset-request
- *   POST /api/v1/auth/password/reset
+ * 이메일 중복확인 API는 없다. 계정 존재 여부가 드러나지 않아야 하므로(NFR-AUTH-018)
+ * 이메일 중복은 가입 요청의 409로만 알린다.
  */
 export const emailAuthApi = {
+  /** AUTH-004 · POST /auth/email/signup — 가입 직후 로그인 상태가 되고 소유 확인 메일이 발송된다. */
+  async emailSignup(request: EmailSignupRequest): Promise<AuthTokenResponse> {
+    if (usesAuthMocks) return mockAuthRepository.emailSignup(request)
+
+    return apiRequest<AuthTokenResponse>(
+      '/auth/email/signup',
+      { method: 'POST', body: JSON.stringify(request) },
+      { skipAuthRecovery: true },
+    )
+  },
+
+  /** AUTH-001 · POST /auth/email/login */
+  async emailLogin(request: EmailLoginRequest): Promise<AuthTokenResponse> {
+    if (usesAuthMocks) return mockAuthRepository.emailLogin(request)
+
+    return apiRequest<AuthTokenResponse>(
+      '/auth/email/login',
+      { method: 'POST', body: JSON.stringify(request) },
+      { skipAuthRecovery: true },
+    )
+  },
+
   /**
-   * AUTH-004 이메일 중복확인.
-   *
-   * 화면설계서(아카이브 AUTH-002)에 중복확인 버튼이 있어 화면에 넣었다.
-   * 다만 아카이브 NFR-SEC-011은 계정 존재 여부가 드러나지 않도록 요구하므로
-   * 이 버튼을 실제로 남길지는 결정이 필요하다.
+   * POST /auth/email/verification — 소유 확인 코드 재발송(USER).
+   * 대상 주소는 토큰 사용자의 이메일이라 바디가 없다.
    */
-  checkEmail(email: string): Promise<EmailAvailabilityResponse> {
-    return mockAuthRepository.checkEmail(email)
+  async resendVerification(): Promise<void> {
+    if (usesAuthMocks) return mockAuthRepository.resendVerification()
+    return apiRequest<void>('/auth/email/verification', { method: 'POST' })
   },
 
-  emailSignup(email: string, password: string, nickname: string): Promise<AuthTokenResponse> {
-    return mockAuthRepository.emailSignup(email, password, nickname)
+  /** POST /auth/email/verification/confirm — 코드로 소유를 확인한다(USER). */
+  async confirmVerification(request: EmailVerificationConfirmRequest): Promise<void> {
+    if (usesAuthMocks) return mockAuthRepository.confirmVerification(request)
+
+    return apiRequest<void>('/auth/email/verification/confirm', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
   },
 
-  emailLogin(email: string, password: string): Promise<AuthTokenResponse> {
-    return mockAuthRepository.emailLogin(email, password)
+  /** AUTH-003 · POST /auth/password/reset — 계정 유무와 무관하게 204다. */
+  async requestPasswordReset(request: PasswordResetRequest): Promise<void> {
+    if (usesAuthMocks) return mockAuthRepository.requestPasswordReset(request)
+
+    return apiRequest<void>(
+      '/auth/password/reset',
+      { method: 'POST', body: JSON.stringify(request) },
+      { skipAuthRecovery: true },
+    )
   },
 
-  requestPasswordReset(email: string): Promise<PasswordResetCodeResponse> {
-    return mockAuthRepository.requestPasswordReset(email)
-  },
+  /** AUTH-003 · POST /auth/password/reset/confirm — 성공하면 모든 세션이 끊긴다. */
+  async confirmPasswordReset(request: PasswordResetConfirmRequest): Promise<void> {
+    if (usesAuthMocks) return mockAuthRepository.confirmPasswordReset(request)
 
-  resetPassword(email: string, code: string, newPassword: string): Promise<void> {
-    return mockAuthRepository.resetPassword(email, code, newPassword)
+    return apiRequest<void>(
+      '/auth/password/reset/confirm',
+      { method: 'POST', body: JSON.stringify(request) },
+      { skipAuthRecovery: true },
+    )
   },
 }
