@@ -7,6 +7,7 @@ import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoun
 import { AdminLayout } from '@/features/admin/components/AdminLayout'
 import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
 import { AdminTradesPage } from '@/features/admin/pages/AdminTradesPage'
+import { EmailLoginPage } from '@/features/auth/pages/EmailLoginPage'
 import { EmailSignupPage } from '@/features/auth/pages/EmailSignupPage'
 import { EmailVerificationPage } from '@/features/auth/pages/EmailVerificationPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
@@ -45,6 +46,7 @@ export function AppRoutes() {
       {/* 인증 — COM-001, AUTH-001~004 */}
       <Route path="/splash" element={<SplashPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/email" element={<EmailLoginPage />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/signup/email" element={<EmailSignupPage />} />

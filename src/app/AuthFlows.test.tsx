@@ -33,8 +33,10 @@ describe('개발자 B 인증 흐름', () => {
 
     // 버튼 라벨은 화면설계서 표기를 따른다
     expect(
-      await screen.findByRole('button', { name: 'Kakao로 계속하기' }),
+      await screen.findByRole('button', { name: '카카오로 시작하기' }),
     ).toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
   it('AUTH-001 가입된 인가 코드는 바로 로그인되고 토큰이 메모리에 담긴다', async () => {

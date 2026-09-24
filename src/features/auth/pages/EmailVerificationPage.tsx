@@ -29,7 +29,7 @@ export function EmailVerificationPage() {
   // 인증 수단과 확인 여부는 본인 정보에서만 알 수 있다(내 정보 조회 명세).
   useEffect(() => {
     if (!accessToken) {
-      navigate('/login', { replace: true, state: { message: '로그인이 필요합니다.' } })
+      navigate('/login/email', { replace: true, state: { message: '로그인이 필요합니다.' } })
       return
     }
 
@@ -46,7 +46,7 @@ export function EmailVerificationPage() {
       })
       .catch(() => {
         if (canceled) return
-        navigate('/login', { replace: true, state: { message: '로그인이 필요합니다.' } })
+        navigate('/login/email', { replace: true, state: { message: '로그인이 필요합니다.' } })
       })
 
     return () => {

@@ -29,6 +29,10 @@
   padding-top: 8px;
 }
 
+.auth-shell--login {
+  gap: 64px;
+}
+
 .auth-lead {
   margin: 0;
   color: var(--ink-soft);
@@ -46,23 +50,6 @@
   font-size: 0.85rem;
   font-weight: 650;
   text-decoration: none;
-}
-
-.auth-divider {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--ink-faint);
-  font-size: 0.78rem;
-}
-
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1 1 auto;
-  height: 1px;
-  background: var(--line);
 }
 
 .profile-picker {
@@ -110,6 +97,12 @@
 
 .brand--splash strong {
   display: block;
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+}
+
+.brand--splash h1 {
+  margin: 0;
   font-size: 1.4rem;
   letter-spacing: -0.01em;
 }
@@ -213,21 +206,4 @@
   width: 18px;
   height: 18px;
   accent-color: var(--brand);
-}
-
-.dev-notice {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.dev-notice p {
-  margin: 0;
-  color: var(--ink-faint);
-  font-size: 0.78rem;
 }
