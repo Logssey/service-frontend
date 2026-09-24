@@ -49,13 +49,13 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
 
   it('AUTH-001 이메일과 비밀번호로 로그인한다', async () => {
     const user = userEvent.setup()
-    renderRoute('/login')
+    renderRoute('/login/email')
 
-    expect(screen.getByRole('button', { name: 'Log In' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '로그인' })).toBeDisabled()
 
-    await user.type(screen.getByLabelText('Email'), 'test@reused.dev')
-    await user.type(screen.getByLabelText('Password'), 'test1234')
-    await user.click(screen.getByRole('button', { name: 'Log In' }))
+    await user.type(screen.getByLabelText('이메일'), 'test@reused.dev')
+    await user.type(screen.getByLabelText('비밀번호'), 'test1234')
+    await user.click(screen.getByRole('button', { name: '로그인' }))
 
     expect(
       await screen.findByRole('heading', { name: '다시 쓰는 좋은 물건' }),
@@ -65,17 +65,17 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
 
   it('AUTH-001 이메일이 없을 때와 비밀번호가 틀릴 때의 응답이 같다', async () => {
     const user = userEvent.setup()
-    renderRoute('/login')
+    renderRoute('/login/email')
 
-    await user.type(screen.getByLabelText('Email'), 'test@reused.dev')
-    await user.type(screen.getByLabelText('Password'), 'wrong-password')
-    await user.click(screen.getByRole('button', { name: 'Log In' }))
+    await user.type(screen.getByLabelText('이메일'), 'test@reused.dev')
+    await user.type(screen.getByLabelText('비밀번호'), 'wrong-password')
+    await user.click(screen.getByRole('button', { name: '로그인' }))
     const wrongPassword = await screen.findByRole('alert')
     expect(wrongPassword).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않습니다.')
 
-    await user.clear(screen.getByLabelText('Email'))
-    await user.type(screen.getByLabelText('Email'), 'nobody@reused.dev')
-    await user.click(screen.getByRole('button', { name: 'Log In' }))
+    await user.clear(screen.getByLabelText('이메일'))
+    await user.type(screen.getByLabelText('이메일'), 'nobody@reused.dev')
+    await user.click(screen.getByRole('button', { name: '로그인' }))
     // 계정 존재 여부가 오류 메시지로 드러나지 않아야 한다(NFR-AUTH-018)
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '이메일 또는 비밀번호가 올바르지 않습니다.',
@@ -84,13 +84,13 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
 
   it('AUTH-001 비밀번호 표시 토글이 입력 종류를 바꾼다', async () => {
     const user = userEvent.setup()
-    renderRoute('/login')
+    renderRoute('/login/email')
 
-    const password = screen.getByLabelText('Password')
+    const password = screen.getByLabelText('비밀번호')
     expect(password).toHaveAttribute('type', 'password')
 
-    await user.click(screen.getByRole('button', { name: 'Password 표시' }))
-    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'text')
+    await user.click(screen.getByRole('button', { name: '비밀번호 표시' }))
+    expect(screen.getByLabelText('비밀번호')).toHaveAttribute('type', 'text')
   })
 
   it('AUTH-004 이메일 가입은 닉네임 중복확인과 약관 2건을 통과해야 열리고, 가입 후 이메일 인증 화면으로 간다', async () => {
@@ -203,9 +203,9 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
       '비밀번호를 변경했습니다. 새 비밀번호로 로그인해 주세요.',
     )
 
-    await user.type(screen.getByLabelText('Email'), 'test@reused.dev')
-    await user.type(screen.getByLabelText('Password'), 'brandnew1234')
-    await user.click(screen.getByRole('button', { name: 'Log In' }))
+    await user.type(screen.getByLabelText('이메일'), 'test@reused.dev')
+    await user.type(screen.getByLabelText('비밀번호'), 'brandnew1234')
+    await user.click(screen.getByRole('button', { name: '로그인' }))
     expect(
       await screen.findByRole('heading', { name: '다시 쓰는 좋은 물건' }),
     ).toBeInTheDocument()
