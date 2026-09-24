@@ -3,16 +3,13 @@ import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { emailAuthApi } from '@/features/auth/api/emailAuthApi'
 import { PasswordField } from '@/features/auth/components/PasswordField'
-import { usesAuthMocks } from '@/features/auth/lib/authMode'
 import {
   buildKakaoAuthorizeUrl,
   buildStubCallbackPath,
-  resetStubAccount,
   usesKakaoStub,
 } from '@/features/auth/lib/kakao'
 import { isEmailShaped } from '@/features/auth/lib/passwordPolicy'
 import { useAuthStore } from '@/features/auth/model/authStore'
-import { mockAuthRepository } from '@/mocks/authRepository'
 import { ApiClientError } from '@/shared/api/http'
 
 /**
@@ -60,16 +57,6 @@ export function LoginPage() {
       return
     }
     window.location.href = buildKakaoAuthorizeUrl()
-  }
-
-  /**
-   * 인가 코드를 새로 뽑아 미가입자로 되돌린다. 실제 백엔드에 붙어 있어도 유효한데,
-   * 대역이 인가 코드를 그대로 회원번호로 쓰므로 코드가 바뀌면 처음 보는 회원이 된다.
-   */
-  const startAsNewMember = () => {
-    resetStubAccount()
-    if (usesAuthMocks) mockAuthRepository.reset()
-    navigate(buildStubCallbackPath(), { replace: true })
   }
 
   return (
@@ -138,21 +125,6 @@ export function LoginPage() {
           <MessageCircle size={18} aria-hidden="true" />
           Kakao로 계속하기
         </button>
-
-        {usesKakaoStub ? (
-          <div className="dev-notice">
-            <p>대역 모드 · 카카오를 호출하지 않습니다</p>
-            <button className="button button--secondary" type="button" onClick={startAsNewMember}>
-              신규 회원으로 가입 흐름 보기
-            </button>
-          </div>
-        ) : null}
-
-        {usesAuthMocks ? (
-          <div className="dev-notice">
-            <p>목 계정 · test@reused.dev / test1234</p>
-          </div>
-        ) : null}
 
         <p className="auth-terms">
           로그인 시 서비스 이용약관과
