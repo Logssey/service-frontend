@@ -1,0 +1,11 @@
+# dist 와 nginx.conf 만 이미지에 넣는다.
+node_modules/
+src/
+public/
+.git/
+.github/
+*.md
+package*.json
+tsconfig*.json
+vite.config.*
+eslint.config.*
