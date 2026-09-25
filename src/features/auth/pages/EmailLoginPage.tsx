@@ -6,7 +6,7 @@ import { isEmailShaped } from '@/features/auth/lib/passwordPolicy'
 import { useAuthStore } from '@/features/auth/model/authStore'
 import { ApiClientError } from '@/shared/api/http'
 
-/** 기존 이메일 계정의 로그인 화면. 기본 로그인 화면에서는 카카오만 안내한다. */
+/** 기존 이메일 계정용 직접 주소. 기본 로그인 화면에서도 같은 계정 로그인을 제공한다. */
 export function EmailLoginPage() {
   const location = useLocation()
   const navigate = useNavigate()
