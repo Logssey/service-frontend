@@ -49,7 +49,7 @@ describe('AUTH-001 · 003 · 004 이메일 계정 화면', () => {
 
   it('AUTH-001 이메일과 비밀번호로 로그인한다', async () => {
     const user = userEvent.setup()
-    renderRoute('/login/email')
+    renderRoute('/login')
 
     expect(screen.getByRole('button', { name: '로그인' })).toBeDisabled()
 

@@ -35,8 +35,10 @@ describe('개발자 B 인증 흐름', () => {
     expect(
       await screen.findByRole('button', { name: '카카오로 시작하기' }),
     ).toBeInTheDocument()
-    expect(screen.getAllByRole('button')).toHaveLength(1)
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('이메일')).toBeInTheDocument()
+    expect(screen.getByLabelText('비밀번호')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '회원가입' })).toHaveAttribute('href', '/signup/email')
+    expect(screen.getByRole('link', { name: '비밀번호 재설정' })).toHaveAttribute('href', '/password/reset')
   })
 
   it('AUTH-001 가입된 인가 코드는 바로 로그인되고 토큰이 메모리에 담긴다', async () => {
