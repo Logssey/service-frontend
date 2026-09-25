@@ -255,7 +255,12 @@ export function ListingFormPage() {
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!values.categoryId) {
+    if (
+      !values.categoryId ||
+      !categoriesQuery.data?.some(
+        (category) => category.categoryId === values.categoryId,
+      )
+    ) {
       showToast('카테고리를 선택해 주세요.')
       return
     }
@@ -417,6 +422,7 @@ export function ListingFormPage() {
               <select
                 required
                 value={values.categoryId}
+                disabled={!categoriesQuery.isSuccess || categoriesQuery.data.length === 0}
                 onChange={(event) =>
                   setValues((current) => ({
                     ...current,
@@ -424,7 +430,15 @@ export function ListingFormPage() {
                   }))
                 }
               >
-                <option value="">선택해 주세요</option>
+                <option value="">
+                  {categoriesQuery.isPending || categoriesQuery.isFetching
+                    ? '카테고리 불러오는 중'
+                    : categoriesQuery.isError
+                      ? '카테고리 불러오기 실패'
+                      : categoriesQuery.data.length === 0
+                        ? '등록 가능한 카테고리 없음'
+                        : '선택해 주세요'}
+                </option>
                 {categoriesQuery.data?.map((category) => (
                   <option value={category.categoryId} key={category.categoryId}>
                     {category.name}
@@ -432,6 +446,19 @@ export function ListingFormPage() {
                 ))}
               </select>
             </label>
+            {categoriesQuery.isError && !categoriesQuery.isFetching ? (
+              <div className="field-error" role="alert">
+                카테고리를 불러오지 못했습니다. 서버 연결을 확인한 뒤 다시 시도해 주세요.
+                <button type="button" onClick={() => void categoriesQuery.refetch()}>
+                  다시 시도
+                </button>
+              </div>
+            ) : null}
+            {categoriesQuery.isSuccess && categoriesQuery.data.length === 0 ? (
+              <p className="field-error" role="status">
+                등록 가능한 카테고리가 없습니다.
+              </p>
+            ) : null}
 
             <label className="field">
               <span className="field__label">가격</span>
