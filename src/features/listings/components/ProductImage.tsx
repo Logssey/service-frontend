@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { ImageOff } from 'lucide-react'
 
 const productSheetPath = '/images/marketplace-products.png'
 const cropClasses = [
@@ -20,11 +21,24 @@ export function ProductImage({
   spriteIndex,
 }: {
   listingId: number
-  url: string
+  url: string | null
   alt: string
   className?: string
   spriteIndex?: number
 }) {
+  if (!url?.trim()) {
+    return (
+      <div
+        className={`product-image product-image--placeholder ${className}`.trim()}
+        role="img"
+        aria-label={`${alt} 없음`}
+      >
+        <ImageOff size={30} aria-hidden="true" />
+        <span aria-hidden="true">사진 없음</span>
+      </div>
+    )
+  }
+
   if (!isFixtureSprite(url)) {
     return (
       <img

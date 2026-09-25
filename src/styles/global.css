@@ -403,6 +403,17 @@ button:disabled {
   object-position: center;
 }
 
+.product-image--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--ink-faint);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .product-image--top-left {
   background-position: left top;
 }

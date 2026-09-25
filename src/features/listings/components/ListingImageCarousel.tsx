@@ -3,11 +3,6 @@ import { useMemo, useState } from 'react'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 import type { ListingImageResponse } from '@/features/listings/model/types'
 
-const fallbackImage: ListingImageResponse = {
-  imageId: -1,
-  url: '/images/marketplace-products.png',
-  displayOrder: 0,
-}
 const maxCarouselImages = 5
 
 export function ListingImageCarousel({
@@ -26,9 +21,9 @@ export function ListingImageCarousel({
         .slice(0, maxCarouselImages),
     [images],
   )
-  const carouselImages = orderedImages.length > 0 ? orderedImages : [fallbackImage]
+  const carouselImages = orderedImages
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const lastIndex = carouselImages.length - 1
+  const lastIndex = Math.max(0, carouselImages.length - 1)
   const currentIndex = Math.min(selectedIndex, lastIndex)
   const canNavigate = carouselImages.length > 1
 
@@ -40,7 +35,7 @@ export function ListingImageCarousel({
     setSelectedIndex((current) => Math.min(lastIndex, current + 1))
   }
 
-  const currentImage = carouselImages[currentIndex] ?? carouselImages[0]
+  const currentImage = carouselImages[currentIndex]
 
   return (
     <section
@@ -72,9 +67,9 @@ export function ListingImageCarousel({
       <ProductImage
         className="product-image--detail"
         listingId={listingId}
-        spriteIndex={canNavigate ? currentImage.displayOrder : undefined}
-        url={currentImage.url}
-        alt={`${title} 상품 사진 ${currentIndex + 1}`}
+        spriteIndex={canNavigate ? currentImage?.displayOrder : undefined}
+        url={currentImage?.url ?? null}
+        alt={currentImage ? `${title} 상품 사진 ${currentIndex + 1}` : `${title} 상품 사진`}
       />
 
       {canNavigate ? (
@@ -120,9 +115,11 @@ export function ListingImageCarousel({
         </>
       ) : null}
 
-      <span className="image-count" aria-live="polite">
-        {currentIndex + 1} / {carouselImages.length}
-      </span>
+      {carouselImages.length > 0 ? (
+        <span className="image-count" aria-live="polite">
+          {currentIndex + 1} / {carouselImages.length}
+        </span>
+      ) : null}
     </section>
   )
 }

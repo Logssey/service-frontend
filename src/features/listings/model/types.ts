@@ -18,7 +18,7 @@ export interface UserSummaryResponse {
 
 export interface SellerBriefResponse extends UserSummaryResponse {
   completedTradeCount: number
-  averageRating: number
+  averageRating: number | null
 }
 
 export interface ListingImageResponse {
@@ -33,7 +33,7 @@ export interface ListingSummaryResponse {
   price: number
   status: ListingStatus
   itemCondition: ItemCondition
-  thumbnailUrl: string
+  thumbnailUrl: string | null
   wishCount: number
   seller: UserSummaryResponse
   createdAt: string

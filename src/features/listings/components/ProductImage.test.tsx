@@ -3,6 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 
 describe('ProductImage', () => {
+  it.each([null, '', '   '])('사진 URL이 %s이면 접근 가능한 대체 이미지를 표시한다', (url) => {
+    render(<ProductImage listingId={101} url={url} alt="사진 없는 게시글 상품 사진" />)
+
+    const image = screen.getByRole('img', {
+      name: '사진 없는 게시글 상품 사진 없음',
+    })
+    expect(image).toHaveClass('product-image--placeholder')
+    expect(image).toHaveTextContent('사진 없음')
+    expect(screen.queryByRole('img', { name: '사진 없는 게시글 상품 사진' })).not.toBeInTheDocument()
+  })
+
   it('일반 이미지 URL은 스프라이트로 자르지 않고 img로 표시한다', () => {
     render(
       <ProductImage
