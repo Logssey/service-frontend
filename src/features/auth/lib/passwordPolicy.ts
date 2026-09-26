@@ -11,6 +11,9 @@ export const PASSWORD_MAX = 128
 export const NICKNAME_MIN = 2
 export const NICKNAME_MAX = 20
 
+/** user_identities.email VARCHAR(254)와 서버의 @Size(max = 254)에 맞춘다. */
+export const EMAIL_MAX = 254
+
 /** 화면 단계에서 걸러내는 최소 형식. 정밀한 검증은 서버가 한다. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 

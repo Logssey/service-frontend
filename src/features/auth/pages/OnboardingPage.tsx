@@ -2,17 +2,26 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authApi } from '@/features/auth/api/authApi'
 import { ProfileImagePicker } from '@/features/auth/components/ProfileImagePicker'
+import {
+  EMAIL_MAX,
+  NICKNAME_MAX,
+  NICKNAME_MIN,
+  isEmailShaped,
+} from '@/features/auth/lib/passwordPolicy'
 import { useAuthStore } from '@/features/auth/model/authStore'
 import { ApiClientError } from '@/shared/api/http'
-
-const NICKNAME_MIN = 2
-const NICKNAME_MAX = 20
 
 /**
  * AUTH-002 온보딩(닉네임 설정).
  *
- * 카카오에서 이메일·비밀번호를 받지 않으므로 가입에 필요한 입력은 닉네임과 약관 동의뿐이다(ADR-004).
- * 닉네임은 2~20자이고 중복이면 409다. 필수 약관 2건에 모두 동의해야 제출할 수 있다.
+ * 카카오에는 이메일을 요청하지 않는다. 가입에 필요한 입력은 닉네임과 필수 약관 동의뿐이고
+ * 이메일은 사용자가 선택 입력한다(ADR-004, ADR-019). 닉네임은 2~20자이고 중복이면 409다.
+ * 필수 약관 2건에 모두 동의해야 제출할 수 있다.
+ *
+ * 이메일을 입력하면 별도의 [선택] 수집·이용 동의가 있어야 제출할 수 있고, 가입 직후 서버가 보낸
+ * 소유 확인 코드를 입력하는 화면으로 간다. 입력 단계에서는 이메일 중복을 검사하지 않는다 — 확인 전
+ * 주소는 선점할 수 없고 가입 여부도 드러나지 않아야 한다. 소셜 계정의 이메일은 연락 수단이라
+ * 로그인·비밀번호 재설정에 쓰이지 않는다.
  */
 export function OnboardingPage() {
   const navigate = useNavigate()
@@ -22,6 +31,8 @@ export function OnboardingPage() {
   const [nickname, setNickname] = useState('')
   const [checked, setChecked] = useState<{ nickname: string; available: boolean } | null>(null)
   const [checking, setChecking] = useState(false)
+  const [email, setEmail] = useState('')
+  const [emailAgreed, setEmailAgreed] = useState(false)
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [privacyAgreed, setPrivacyAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -45,7 +56,15 @@ export function OnboardingPage() {
   const lengthValid = trimmed.length >= NICKNAME_MIN && trimmed.length <= NICKNAME_MAX
   // 닉네임을 고치면 이전 중복확인 결과는 무효다
   const confirmed = checked?.nickname === trimmed ? checked.available : null
-  const canSubmit = lengthValid && confirmed === true && termsAgreed && privacyAgreed
+
+  // 이메일은 선택이다. 비워 두면 선택 동의와 함께 무시하고, 입력했다면 형식과 동의가 모두 필요하다
+  const trimmedEmail = email.trim()
+  const emailEntered = trimmedEmail.length > 0
+  const emailShaped = isEmailShaped(trimmedEmail)
+  const emailReady = !emailEntered || (emailShaped && emailAgreed)
+
+  const canSubmit =
+    lengthValid && confirmed === true && emailReady && termsAgreed && privacyAgreed
 
   const runCheck = async () => {
     if (!lengthValid || checking) return
@@ -73,12 +92,15 @@ export function OnboardingPage() {
       const session = await authApi.signup({
         signupToken,
         nickname: trimmed,
+        // 비어 있으면 이메일과 선택 동의를 모두 보내지 않는다
+        ...(emailEntered ? { email: trimmedEmail, emailCollectionAgreed: emailAgreed } : {}),
         termsOfServiceAgreed: termsAgreed,
         privacyPolicyAgreed: privacyAgreed,
       })
       completed.current = true
       setSession(session.accessToken, session.user)
-      navigate('/', { replace: true })
+      // 이메일을 입력했으면 소유 확인 메일이 발송되어 있다. 확인은 건너뛸 수 있다.
+      navigate(emailEntered ? '/verify-email' : '/', { replace: true })
     } catch (cause: unknown) {
       if (cause instanceof ApiClientError && cause.status === 409) {
         setChecked({ nickname: trimmed, available: false })
@@ -136,6 +158,48 @@ export function OnboardingPage() {
             {trimmed.length > 0 && !lengthValid ? (
               <p className="field-error" role="alert">
                 * 닉네임은 {NICKNAME_MIN}~{NICKNAME_MAX}자로 입력해 주세요
+              </p>
+            ) : null}
+          </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="onboarding-email">
+              이메일 (선택)
+            </label>
+            <input
+              id="onboarding-email"
+              type="email"
+              value={email}
+              placeholder="이메일을 입력해 주세요"
+              autoComplete="email"
+              maxLength={EMAIL_MAX}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+            <p className="field-help">
+              입력하면 소유 확인 코드를 보내드려요. 로그인은 계속 카카오로 하며, 이 이메일로 로그인하거나
+              비밀번호를 재설정할 수는 없어요.
+            </p>
+            {emailEntered && !emailShaped ? (
+              <p className="field-error" role="alert">
+                * 이메일 형식이 올바르지 않습니다
+              </p>
+            ) : null}
+
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={emailAgreed}
+                onChange={(event) => setEmailAgreed(event.target.checked)}
+              />
+              <span>[선택] 이메일 수집·이용 동의</span>
+            </label>
+            <p className="field-help">
+              소유 확인된 연락 수단으로 서비스 안내를 받기 위해 이메일을 수집하며, 탈퇴하면 함께
+              삭제됩니다. 동의하지 않아도 가입할 수 있고, 이메일을 입력했다면 동의가 필요해요.
+            </p>
+            {emailEntered && emailShaped && !emailAgreed ? (
+              <p className="field-error" role="alert">
+                * 이메일을 등록하려면 이메일 수집·이용에 동의해 주세요
               </p>
             ) : null}
           </div>

@@ -5,7 +5,7 @@ Re:Used 중고거래 서비스의 React SPA입니다. 개발자 A의 카테고�
 ## 현재 구현 범위
 
 - `AUTH-001` 로그인 (이메일·비밀번호, 카카오)
-- `AUTH-002` 소셜 온보딩 (닉네임, 약관 2건 개별 동의)
+- `AUTH-002` 소셜 온보딩 (닉네임, 선택 이메일과 별도 선택 동의, 약관 2건 개별 동의)
 - `AUTH-003` 비밀번호 재설정 (메일 코드, 10분·1회 사용)
 - `AUTH-004` 이메일 회원가입과 이메일 소유 확인
 - `HOME-001` 상품 목록
@@ -46,6 +46,8 @@ npm run dev
 기본 주소는 `http://localhost:5173`입니다.
 
 인증 화면은 `/login`, `/signup/email`, `/verify-email`, `/password/reset`, 카카오 콜백 `/oauth/callback`, 온보딩 `/onboarding`이다. API 계약은 `service-design-docs/05-api/endpoints/auth`를 따른다 — 소셜 로그인은 `POST /auth/oauth/{provider}`, 약관은 `termsOfServiceAgreed`·`privacyPolicyAgreed` 2개 필드, 이메일 중복확인 API는 없고 가입 요청의 409로만 알린다. 인증·재설정 코드는 메일로만 전달되며 목 모드에서는 브라우저 콘솔에 `[mock mail]`로 찍힌다.
+
+카카오에는 이메일을 요청하지 않는다. 소셜 온보딩에서 이메일을 선택 입력할 수 있고, 입력하면 `[선택] 이메일 수집·이용 동의`(`emailCollectionAgreed`)가 함께 필요하며 가입 뒤 `/verify-email`에서 소유를 확인한다(ADR-019). 소셜 계정의 이메일은 연락 수단이라 로그인·비밀번호 재설정에 쓰이지 않는다. 인증 화면은 `GET /users/me`의 `email`이 있고 `emailVerified`가 `false`인 계정만 대상으로 하므로, 이 기능은 `email` 필드를 내려 주는 백엔드가 배포된 뒤에 머지한다.
 
 주요 사용자 화면은 `/`, `/wishes`, `/trades`, `/chat`, `/community`, `/me`에서 확인할 수 있습니다. 커뮤니티 글은 `/community/new`에서 작성하고 `/community/:postId`에서 조회하며, 본인 글은 `/community/:postId/edit`에서 수정할 수 있습니다. 관리자 화면은 `/admin/listings`, `/admin/trades`에서 확인할 수 있으며 현재 ADMIN 권한은 인증 연동 전 목 경계를 사용합니다.
 

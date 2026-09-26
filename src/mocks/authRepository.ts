@@ -1,3 +1,4 @@
+import { EMAIL_MAX, isEmailShaped } from '@/features/auth/lib/passwordPolicy'
 import type {
   EmailLoginRequest,
   EmailSignupRequest,
@@ -32,15 +33,19 @@ const CURRENT_USER: UserSummaryResponse = {
 const initialMembers = new Map<string, UserSummaryResponse>([['local-member', CURRENT_USER]])
 const takenNicknames = ['재현', '판매왕', '중고왕']
 
+/** 소유 확인 대상 이메일. LOCAL 계정과 이메일을 등록한 소셜 계정이 같은 모양을 쓴다. */
+interface RegisteredEmail {
+  email: string
+  emailVerified: boolean
+}
+
 /**
  * 이메일 계정 대역. 비밀번호를 평문으로 들고 있는 것은 목이기 때문이다.
  * 실제 서버는 argon2id로 보관한다(NFR-AUTH-014).
  */
-interface LocalAccount {
-  email: string
+interface LocalAccount extends RegisteredEmail {
   password: string
   user: UserSummaryResponse
-  emailVerified: boolean
 }
 
 const initialLocalAccounts: LocalAccount[] = [
@@ -67,6 +72,11 @@ const CODE_MAX_ATTEMPTS = 5
 
 let members = new Map(initialMembers)
 let localAccounts = structuredClone(initialLocalAccounts)
+/**
+ * 온보딩에서 선택 입력한 소셜 계정 이메일(ADR-019). userId 기준이다.
+ * 식별자가 아니므로 이메일 로그인·재설정 조회에는 쓰지 않는다.
+ */
+let socialEmails = new Map<number, RegisteredEmail>()
 let codes = new Map<string, IssuedCode>()
 let session: UserSummaryResponse | null = null
 let nextUserId = 4
@@ -105,6 +115,10 @@ export const mockAuthRepository = {
     }
   },
 
+  /**
+   * 이메일은 선택이다. 입력 단계에서는 중복을 검사하지 않는다 — 확인 전 주소는 선점할 수 없고
+   * 가입 여부도 드러나지 않아야 한다. 입력했으면 선택 동의가 필요하고 소유 확인 코드가 발급된다.
+   */
   async signup(request: SignupRequest): Promise<AuthTokenResponse> {
     await wait()
 
@@ -113,6 +127,14 @@ export const mockAuthRepository = {
     }
     if (!request.termsOfServiceAgreed || !request.privacyPolicyAgreed) {
       throw new ApiClientError(400, 'INVALID_INPUT', '필수 약관에 모두 동의해야 합니다.')
+    }
+    const email = optionalEmailOf(request.email)
+    if (email !== null && request.emailCollectionAgreed !== true) {
+      throw new ApiClientError(
+        400,
+        'INVALID_INPUT',
+        '이메일을 등록하려면 이메일 수집·이용에 동의해야 합니다.',
+      )
     }
     if (this.isNicknameTaken(request.nickname)) {
       throw new ApiClientError(409, 'CONFLICT', '이미 사용 중인 닉네임입니다.')
@@ -127,6 +149,10 @@ export const mockAuthRepository = {
     }
     members.set(code, created)
     session = created
+    if (email !== null) {
+      socialEmails.set(created.userId, { email, emailVerified: false })
+      issueCode('verify', verifyCodeKey(created.userId))
+    }
 
     return { accessToken: issueToken('access'), user: structuredClone(created) }
   },
@@ -152,7 +178,7 @@ export const mockAuthRepository = {
   async me(): Promise<MyProfileResponse> {
     await wait(80)
     const current = requireSession()
-    const account = findAccountOf(current)
+    const target = findVerificationTarget(current)
     return {
       userId: current.userId,
       nickname: current.nickname,
@@ -161,8 +187,9 @@ export const mockAuthRepository = {
       role: 'USER',
       status: 'ACTIVE',
       suspendedUntil: null,
-      provider: account ? 'LOCAL' : 'KAKAO',
-      emailVerified: account?.emailVerified ?? false,
+      provider: findAccountOf(current) ? 'LOCAL' : 'KAKAO',
+      email: target?.email ?? null,
+      emailVerified: target?.emailVerified ?? false,
       createdAt: '2026-01-10T03:00:00Z',
     }
   },
@@ -201,13 +228,14 @@ export const mockAuthRepository = {
     }
     localAccounts.push({ email, password: request.password, user: created, emailVerified: false })
     session = created
-    issueCode('verify', email)
+    issueCode('verify', verifyCodeKey(created.userId))
 
     return { accessToken: issueToken('access'), user: structuredClone(created) }
   },
 
   /**
    * 이메일이 없는 경우와 비밀번호가 틀린 경우의 응답을 구분하지 않는다(NFR-AUTH-018).
+   * 조회 대상은 LOCAL 계정뿐이다. 소셜 계정에 등록된 이메일로는 로그인할 수 없다(ADR-019).
    */
   async emailLogin(request: EmailLoginRequest): Promise<AuthTokenResponse> {
     await wait()
@@ -225,34 +253,48 @@ export const mockAuthRepository = {
     return { accessToken: issueToken('access'), user: structuredClone(account.user) }
   },
 
+  /** 이미 다른 계정에서 인증된 주소여도 재발송은 막지 않는다. 판정은 확인 단계에서 한다(ADR-019). */
   async resendVerification(): Promise<void> {
     await wait()
-    const account = findAccountOf(requireSession())
-    if (!account) {
-      throw new ApiClientError(409, 'CONFLICT', '소셜 계정은 이메일 소유 확인 대상이 아닙니다.')
+    const current = requireSession()
+    const target = findVerificationTarget(current)
+    if (!target) {
+      throw new ApiClientError(409, 'CONFLICT', '등록된 이메일이 없습니다.')
     }
-    if (account.emailVerified) {
+    if (target.emailVerified) {
       throw new ApiClientError(409, 'CONFLICT', '이미 소유 확인이 완료된 이메일입니다.')
     }
-    issueCode('verify', account.email)
+    issueCode('verify', verifyCodeKey(current.userId))
   },
 
+  /**
+   * 인증을 마친 소셜 이메일은 한 계정에만 둔다(ADR-019). 코드로 소유가 증명된 뒤에만 409로 알리며,
+   * 그때 코드는 소비하지 않는다. LOCAL 계정과 같은 주소인 것은 막지 않는다.
+   */
   async confirmVerification(request: EmailVerificationConfirmRequest): Promise<void> {
     await wait()
-    const account = findAccountOf(requireSession())
-    if (!account) {
+    const current = requireSession()
+    const target = findVerificationTarget(current)
+    if (!target) {
       throw invalidCode()
     }
-    consumeCode('verify', account.email, request.code)
-    account.emailVerified = true
+    const issued = matchCode(verifyCodeKey(current.userId), request.code)
+    if (!findAccountOf(current) && isVerifiedOnOtherSocialAccount(current.userId, target.email)) {
+      throw new ApiClientError(409, 'CONFLICT', '이미 다른 계정에서 인증된 이메일입니다.')
+    }
+    issued.used = true
+    target.emailVerified = true
   },
 
-  /** 실제 서버처럼 계정이 없어도 성공으로 끝난다. 코드는 존재하는 계정에만 발급한다. */
+  /**
+   * 실제 서버처럼 계정이 없어도 성공으로 끝난다. 코드는 존재하는 LOCAL 계정에만 발급한다.
+   * 소셜 계정에 등록된 이메일은 재설정 대상이 아니다(ADR-019).
+   */
   async requestPasswordReset(request: PasswordResetRequest): Promise<void> {
     await wait()
     const email = normalize(request.email)
     if (localAccounts.some((account) => account.email === email)) {
-      issueCode('reset', email)
+      issueCode('reset', resetCodeKey(email))
     }
   },
 
@@ -264,7 +306,7 @@ export const mockAuthRepository = {
     if (!account) {
       throw invalidCode()
     }
-    consumeCode('reset', email, request.code)
+    matchCode(resetCodeKey(email), request.code).used = true
     account.password = request.newPassword
     // 비밀번호를 바꾸면 기존 세션을 모두 폐기한다(NFR-AUTH-016)
     session = null
@@ -273,14 +315,23 @@ export const mockAuthRepository = {
   /**
    * 실제 서버는 코드를 메일로만 보낸다. 메일 대역이 없는 목 모드에서 화면·테스트가
    * 코드를 얻는 유일한 통로다. 발급 시 콘솔에도 남긴다.
+   *
+   * 소유 확인 코드는 계정 기준이다. 서버가 인증 수단 기준으로 키를 두는 것처럼, 같은 주소의
+   * LOCAL·카카오 계정이 서로의 코드를 덮어쓰지 않게 이메일이 아니라 userId로 찾는다.
    */
-  peekCode(purpose: CodePurpose, email: string): string | null {
-    return codes.get(codeKey(purpose, normalize(email)))?.code ?? null
+  peekVerificationCode(userId: number): string | null {
+    return codes.get(verifyCodeKey(userId))?.code ?? null
+  },
+
+  /** 재설정 코드는 LOCAL 이메일 기준이다. */
+  peekResetCode(email: string): string | null {
+    return codes.get(resetCodeKey(email))?.code ?? null
   },
 
   reset() {
     members = new Map(initialMembers)
     localAccounts = structuredClone(initialLocalAccounts)
+    socialEmails = new Map()
     codes = new Map()
     session = null
     nextUserId = 4
@@ -298,9 +349,44 @@ function findAccountOf(user: UserSummaryResponse) {
   return localAccounts.find((account) => account.user.userId === user.userId)
 }
 
-function issueCode(purpose: CodePurpose, email: string) {
+/**
+ * 소유 확인 대상은 provider가 아니라 등록된 이메일로 정한다. 돌려준 객체를 고치면 원본이 바뀐다.
+ * 이메일이 없는 소셜 계정은 undefined다.
+ */
+function findVerificationTarget(user: UserSummaryResponse): RegisteredEmail | undefined {
+  return findAccountOf(user) ?? socialEmails.get(user.userId)
+}
+
+function isVerifiedOnOtherSocialAccount(userId: number, email: string) {
+  return [...socialEmails].some(
+    ([ownerId, registered]) =>
+      ownerId !== userId && registered.emailVerified && registered.email === email,
+  )
+}
+
+/**
+ * 서버처럼 생략·빈 문자열은 미입력으로 보고, 앞뒤 공백·형식·길이 위반은 400이다.
+ * 저장 전에는 이메일 가입과 같이 소문자로 정규화한다.
+ */
+function optionalEmailOf(raw: string | undefined): string | null {
+  if (raw === undefined || raw === '') return null
+  if (raw !== raw.trim() || raw.length > EMAIL_MAX || !isEmailShaped(raw)) {
+    throw new ApiClientError(400, 'INVALID_INPUT', '이메일 형식이 올바르지 않습니다.')
+  }
+  return normalize(raw)
+}
+
+function verifyCodeKey(userId: number) {
+  return `verify:user:${userId}`
+}
+
+function resetCodeKey(email: string) {
+  return `reset:${normalize(email)}`
+}
+
+function issueCode(purpose: CodePurpose, key: string) {
   const code = String(Math.floor(100000 + Math.random() * 900000))
-  codes.set(codeKey(purpose, email), { code, issuedAt: Date.now(), used: false, attempts: 0 })
+  codes.set(key, { code, issuedAt: Date.now(), used: false, attempts: 0 })
   if (import.meta.env.MODE !== 'test') {
     console.info(`[mock mail] ${purpose === 'verify' ? '이메일 인증' : '비밀번호 재설정'} 코드 → ${code}`)
   }
@@ -308,9 +394,9 @@ function issueCode(purpose: CodePurpose, email: string) {
 
 /**
  * 만료·재사용·불일치를 구분하지 않고 같은 400을 낸다. 코드당 5회를 넘기면 폐기하고 429다(NFR-AUTH-017).
+ * 맞는 코드를 돌려줄 뿐 사용 처리는 하지 않는다. 남은 검사를 마친 호출부가 used로 둔다.
  */
-function consumeCode(purpose: CodePurpose, email: string, code: string) {
-  const key = codeKey(purpose, email)
+function matchCode(key: string, code: string): IssuedCode {
   const issued = codes.get(key)
   const expired = issued !== undefined && Date.now() - issued.issuedAt > CODE_TTL_MINUTES * 60 * 1000
 
@@ -331,15 +417,11 @@ function consumeCode(purpose: CodePurpose, email: string, code: string) {
     throw invalidCode()
   }
 
-  issued.used = true
+  return issued
 }
 
 function invalidCode() {
   return new ApiClientError(400, 'INVALID_INPUT', '인증 코드가 올바르지 않거나 만료되었습니다.')
-}
-
-function codeKey(purpose: CodePurpose, email: string) {
-  return `${purpose}:${email}`
 }
 
 function normalize(email: string) {
