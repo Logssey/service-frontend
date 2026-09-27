@@ -28,7 +28,10 @@ export const authApi = {
     )
   },
 
-  /** AUTH-002 · POST /auth/signup — signupToken으로 온보딩을 확정한다. */
+  /**
+   * AUTH-002 · POST /auth/signup — signupToken으로 온보딩을 확정한다.
+   * 선택 email이 있으면 가입 직후 소유 확인 메일이 발송된다(ADR-016).
+   */
   async signup(request: SignupRequest): Promise<AuthTokenResponse> {
     if (usesAuthMocks) return mockAuthRepository.signup(request)
 
@@ -67,7 +70,7 @@ export const authApi = {
     )
   },
 
-  /** GET /users/me — 인증 수단과 이메일 소유 확인 여부를 알려준다. */
+  /** GET /users/me — 인증 수단, 등록된 본인 이메일(없으면 null), 소유 확인 여부를 알려준다. */
   async me(): Promise<MyProfileResponse> {
     if (usesAuthMocks) return mockAuthRepository.me()
     return apiRequest<MyProfileResponse>('/users/me')

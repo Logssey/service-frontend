@@ -15,6 +15,8 @@ import { PageHeader } from '@/shared/components/PageHeader'
  *
  * ① 이메일로 코드 발송 ② 코드는 10분 유효·1회 사용 ③ 변경 후 전 세션 만료(비밀번호 재설정 명세).
  * 발송 요청은 계정 유무와 무관하게 성공하므로 화면도 "보냈다"고만 말한다(NFR-AUTH-018).
+ * 재설정은 이메일 가입(LOCAL) 계정에만 있다. 카카오 계정이 온보딩에서 등록한 이메일로 요청해도
+ * 코드는 발송되지 않는다(ADR-016).
  * 코드는 메일 본문에만 있다 — 목 모드에서는 브라우저 콘솔에 찍힌다.
  */
 export function PasswordResetPage() {
@@ -75,7 +77,9 @@ export function PasswordResetPage() {
     <div className="app-page auth-page">
       <PageHeader title="비밀번호 재설정" />
       <main className="auth-shell auth-shell--form">
-        <p className="auth-lead">가입한 이메일로 인증코드를 보냅니다.</p>
+        <p className="auth-lead">
+          이메일로 가입한 계정에 인증코드를 보냅니다. 카카오로 가입했다면 카카오로 로그인해 주세요.
+        </p>
 
         <form className="auth-form" onSubmit={submit}>
           <div className="field">

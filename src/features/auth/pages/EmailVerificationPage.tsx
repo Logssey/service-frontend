@@ -9,27 +9,33 @@ import { PageHeader } from '@/shared/components/PageHeader'
 type Phase = 'loading' | 'pending' | 'verified'
 
 /**
- * 이메일 소유 확인(FR-AUTH-014).
+ * 이메일 소유 확인(FR-AUTH-014, FR-AUTH-017).
  *
+ * 대상은 인증 수단에 이메일이 등록된 계정이다. 이메일 가입(LOCAL)은 항상, 소셜 계정은 온보딩에서
+ * 이메일을 입력한 경우다(ADR-016). 이메일이 없는 계정은 확인할 것이 없으므로 홈으로 보낸다.
  * 가입 직후 서버가 코드를 1회 보내므로 이 화면은 코드 입력과 재발송만 담당한다.
  * 확인 전에도 서비스 이용을 제한하지 않으므로 "나중에 하기"로 건너뛸 수 있다(이메일 가입 명세).
  * 재발송은 60초 간격·시간당 5회, 코드 검증은 코드당 5회로 제한되며 초과 시 429다.
+ * 같은 주소가 다른 소셜 계정에서 이미 인증되어 있으면 확인은 409다.
  */
 export function EmailVerificationPage() {
   const navigate = useNavigate()
   const accessToken = useAuthStore((state) => state.accessToken)
 
   const [phase, setPhase] = useState<Phase>('loading')
+  const [email, setEmail] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [resending, setResending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 인증 수단과 확인 여부는 본인 정보에서만 알 수 있다(내 정보 조회 명세).
+  // 등록된 이메일과 확인 여부는 본인 정보에서만 알 수 있다(내 정보 조회 명세).
+  // 확인 대상은 provider가 아니라 이메일 유무로 가린다 — 이메일을 입력한 소셜 계정도 대상이다.
+  // 그래서 로그인이 필요하면 이메일 전용 화면이 아니라 카카오 로그인도 있는 기본 로그인 화면으로 보낸다.
   useEffect(() => {
     if (!accessToken) {
-      navigate('/login/email', { replace: true, state: { message: '로그인이 필요합니다.' } })
+      navigate('/login', { replace: true, state: { message: '로그인이 필요합니다.' } })
       return
     }
 
@@ -38,15 +44,16 @@ export function EmailVerificationPage() {
       .me()
       .then((profile) => {
         if (canceled) return
-        if (profile.provider !== 'LOCAL') {
+        if (profile.email === null) {
           navigate('/', { replace: true })
           return
         }
+        setEmail(profile.email)
         setPhase(profile.emailVerified ? 'verified' : 'pending')
       })
       .catch(() => {
         if (canceled) return
-        navigate('/login/email', { replace: true, state: { message: '로그인이 필요합니다.' } })
+        navigate('/login', { replace: true, state: { message: '로그인이 필요합니다.' } })
       })
 
     return () => {
@@ -65,6 +72,13 @@ export function EmailVerificationPage() {
       await emailAuthApi.confirmVerification({ code })
       setPhase('verified')
     } catch (cause: unknown) {
+      if (cause instanceof ApiClientError && cause.status === 409) {
+        // 코드는 맞았지만 같은 주소가 다른 계정에서 이미 인증되어 있다(ADR-016). 서버는 코드를
+        // 소비하지 않지만 다시 제출해도 결과가 같으므로 입력을 비운다.
+        setCode('')
+        setError(cause.message || '이미 다른 계정에서 인증된 이메일입니다.')
+        return
+      }
       setError(cause instanceof ApiClientError ? cause.message : '확인에 실패했습니다.')
     } finally {
       setSubmitting(false)
@@ -123,7 +137,7 @@ export function EmailVerificationPage() {
       <main className="auth-shell auth-shell--form">
         <div className="auth-heading">
           <h1>메일로 보낸 인증코드를 입력해 주세요</h1>
-          <p>가입한 이메일로 6자리 코드를 보냈습니다. 10분 안에 입력해 주세요.</p>
+          <p>{email} 주소로 6자리 코드를 보냈습니다. 10분 안에 입력해 주세요.</p>
         </div>
 
         <form className="auth-form" onSubmit={submit}>
