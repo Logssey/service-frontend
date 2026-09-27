@@ -30,7 +30,7 @@ export const authApi = {
 
   /**
    * AUTH-002 · POST /auth/signup — signupToken으로 온보딩을 확정한다.
-   * 선택 email이 있으면 가입 직후 소유 확인 메일이 발송된다(ADR-019).
+   * 선택 email이 있으면 가입 직후 소유 확인 메일이 발송된다(ADR-016).
    */
   async signup(request: SignupRequest): Promise<AuthTokenResponse> {
     if (usesAuthMocks) return mockAuthRepository.signup(request)

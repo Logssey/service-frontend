@@ -73,7 +73,7 @@ const CODE_MAX_ATTEMPTS = 5
 let members = new Map(initialMembers)
 let localAccounts = structuredClone(initialLocalAccounts)
 /**
- * 온보딩에서 선택 입력한 소셜 계정 이메일(ADR-019). userId 기준이다.
+ * 온보딩에서 선택 입력한 소셜 계정 이메일(ADR-016). userId 기준이다.
  * 식별자가 아니므로 이메일 로그인·재설정 조회에는 쓰지 않는다.
  */
 let socialEmails = new Map<number, RegisteredEmail>()
@@ -235,7 +235,7 @@ export const mockAuthRepository = {
 
   /**
    * 이메일이 없는 경우와 비밀번호가 틀린 경우의 응답을 구분하지 않는다(NFR-AUTH-018).
-   * 조회 대상은 LOCAL 계정뿐이다. 소셜 계정에 등록된 이메일로는 로그인할 수 없다(ADR-019).
+   * 조회 대상은 LOCAL 계정뿐이다. 소셜 계정에 등록된 이메일로는 로그인할 수 없다(ADR-016).
    */
   async emailLogin(request: EmailLoginRequest): Promise<AuthTokenResponse> {
     await wait()
@@ -253,7 +253,7 @@ export const mockAuthRepository = {
     return { accessToken: issueToken('access'), user: structuredClone(account.user) }
   },
 
-  /** 이미 다른 계정에서 인증된 주소여도 재발송은 막지 않는다. 판정은 확인 단계에서 한다(ADR-019). */
+  /** 이미 다른 계정에서 인증된 주소여도 재발송은 막지 않는다. 판정은 확인 단계에서 한다(ADR-016). */
   async resendVerification(): Promise<void> {
     await wait()
     const current = requireSession()
@@ -268,7 +268,7 @@ export const mockAuthRepository = {
   },
 
   /**
-   * 인증을 마친 소셜 이메일은 한 계정에만 둔다(ADR-019). 코드로 소유가 증명된 뒤에만 409로 알리며,
+   * 인증을 마친 소셜 이메일은 한 계정에만 둔다(ADR-016). 코드로 소유가 증명된 뒤에만 409로 알리며,
    * 그때 코드는 소비하지 않는다. LOCAL 계정과 같은 주소인 것은 막지 않는다.
    */
   async confirmVerification(request: EmailVerificationConfirmRequest): Promise<void> {
@@ -288,7 +288,7 @@ export const mockAuthRepository = {
 
   /**
    * 실제 서버처럼 계정이 없어도 성공으로 끝난다. 코드는 존재하는 LOCAL 계정에만 발급한다.
-   * 소셜 계정에 등록된 이메일은 재설정 대상이 아니다(ADR-019).
+   * 소셜 계정에 등록된 이메일은 재설정 대상이 아니다(ADR-016).
    */
   async requestPasswordReset(request: PasswordResetRequest): Promise<void> {
     await wait()
