@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { chatApi } from '@/features/chat/api/chatApi'
@@ -7,6 +7,8 @@ import { ChatRoomPage } from '@/features/chat/pages/ChatRoomPage'
 import { listingsApi } from '@/features/listings/api/listingsApi'
 import type { ListingDetailResponse } from '@/features/listings/model/types'
 import { tradesApi } from '@/features/trades/api/tradesApi'
+import { ApiClientError } from '@/shared/api/http'
+import { useToastStore } from '@/shared/state/toastStore'
 
 const room = {
   chatRoomId: 17,
@@ -80,5 +82,34 @@ describe('채팅방 거래 및 신고 흐름', () => {
 
     expect(await screen.findByText('테스트 상품')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '거래 요청' })).not.toBeInTheDocument()
+  })
+
+  it('예약된 상품은 거래 요청을 막는다', async () => {
+    vi.spyOn(chatApi, 'getChatRoomSummary').mockResolvedValue(room)
+    vi.spyOn(chatApi, 'getMessages').mockResolvedValue({ items: [], nextCursor: null, hasNext: false })
+    vi.spyOn(listingsApi, 'getListing').mockResolvedValue({ ...listing, status: 'RESERVED' })
+    const createTrade = vi.spyOn(tradesApi, 'createTrade')
+    renderRoom()
+
+    expect(await screen.findByRole('button', { name: '거래 불가' })).toBeDisabled()
+    expect(createTrade).not.toHaveBeenCalled()
+  })
+
+  it('409 충돌은 상품 상태를 다시 읽고 채팅 입력을 보존한다', async () => {
+    vi.spyOn(chatApi, 'getChatRoomSummary').mockResolvedValue(room)
+    vi.spyOn(chatApi, 'getMessages').mockResolvedValue({ items: [], nextCursor: null, hasNext: false })
+    const getListing = vi.spyOn(listingsApi, 'getListing').mockResolvedValue(listing)
+    vi.spyOn(tradesApi, 'createTrade').mockRejectedValue(
+      new ApiClientError(409, 'CONFLICT', '이미 거래가 진행 중입니다.'),
+    )
+    renderRoom()
+
+    fireEvent.change(await screen.findByPlaceholderText('메시지를 입력하세요'), { target: { value: '거래할게요' } })
+    fireEvent.click(await screen.findByRole('button', { name: '거래 요청' }))
+
+    await waitFor(() => expect(useToastStore.getState().message).toBe('이미 거래가 진행 중이거나 상품 상태가 변경됐습니다.'))
+    expect(getListing).toHaveBeenCalledTimes(2)
+    expect(screen.getByPlaceholderText('메시지를 입력하세요')).toHaveValue('거래할게요')
+    expect(screen.getByRole('button', { name: '거래 요청' })).toBeEnabled()
   })
 })

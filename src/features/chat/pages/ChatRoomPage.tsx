@@ -18,6 +18,7 @@ import { TradeStatusBadge } from '@/features/trades/components/TradeStatusBadge'
 import { useCreateTrade, useTrade } from '@/features/trades/model/queries'
 import { ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { ApiClientError } from '@/shared/api/http'
 import { useToastStore } from '@/shared/state/toastStore'
 import './chatEnhancements.css'
 
@@ -197,7 +198,7 @@ export function ChatRoomPage() {
             <button
               className="chat-context__trade chat-context__request"
               type="button"
-              disabled={createTrade.isPending}
+              disabled={createTrade.isPending || listingQuery.data.status !== 'ON_SALE'}
               onClick={() => createTrade.mutate(room.listing.listingId, {
                 onSuccess: ({ tradeId }) => {
                   void queryClient.invalidateQueries({ queryKey: chatKeys.room(chatRoomId) })
@@ -205,10 +206,20 @@ export function ChatRoomPage() {
                   showToast('거래를 요청했습니다.')
                   navigate(`/trades/${tradeId}`)
                 },
-                onError: (error) => showToast(error instanceof Error ? error.message : '거래를 요청하지 못했습니다.'),
+                onError: (error) => {
+                  if (error instanceof ApiClientError && error.status === 409) {
+                    void listingQuery.refetch()
+                    void roomQuery.refetch()
+                    showToast('이미 거래가 진행 중이거나 상품 상태가 변경됐습니다.')
+                  } else if (error instanceof ApiClientError && error.status === 403) {
+                    showToast('거래 요청 권한이 없습니다.')
+                  } else {
+                    showToast(error instanceof Error ? error.message : '거래를 요청하지 못했습니다.')
+                  }
+                },
               })}
             >
-              {createTrade.isPending ? '요청 중…' : '거래 요청'}
+              {listingQuery.data.status !== 'ON_SALE' ? '거래 불가' : createTrade.isPending ? '요청 중…' : '거래 요청'}
             </button>
           ) : null}
         </section>
