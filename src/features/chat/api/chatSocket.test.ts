@@ -223,6 +223,20 @@ describe('채팅 게이트웨이 연결', () => {
     expect(socket.disconnected).toBe(true)
   })
 
+  it('세션을 끝내면 연결을 닫고, 남은 해제 함수를 불러도 다시 보내지 않는다', () => {
+    const { client, sockets } = setup()
+    const unsubscribe = client.subscribe(12, () => {})
+    const socket = sockets[0]
+    socket.authenticate()
+
+    client.disconnect()
+    expect(socket.disconnected).toBe(true)
+
+    unsubscribe()
+    expect(socket.sentEvents('unsubscribe')).toHaveLength(0)
+    expect(sockets).toHaveLength(1)
+  })
+
   it('로그인 전에는 연결하지 않는다', () => {
     const { client, session, sockets } = setup()
     session.token = null

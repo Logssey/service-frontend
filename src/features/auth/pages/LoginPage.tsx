@@ -17,7 +17,10 @@ export function LoginPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const setSession = useAuthStore((state) => state.setSession)
-  const handedOverMessage = (location.state as { message?: string } | null)?.message
+  // 로그아웃·탈퇴 완료(info)는 안내로, 나머지(세션 만료·로그인 취소 등)는 경고로 보인다
+  const handedOver = location.state as { message?: string; tone?: 'info' | 'alert' } | null
+  const handedOverMessage = handedOver?.message
+  const handedOverIsInfo = handedOver?.tone === 'info'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -68,7 +71,10 @@ export function LoginPage() {
         </div>
 
         {handedOverMessage ? (
-          <p className="auth-alert" role="alert">
+          <p
+            className={handedOverIsInfo ? 'auth-alert auth-alert--info' : 'auth-alert'}
+            role={handedOverIsInfo ? 'status' : 'alert'}
+          >
             {handedOverMessage}
           </p>
         ) : null}

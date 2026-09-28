@@ -273,7 +273,7 @@ describe('개발자 A 핵심 거래 흐름', () => {
 
   it('내 게시글의 거래 지표와 상태 필터를 보여주고 cursor로 이어서 조회한다', async () => {
     const user = userEvent.setup()
-    renderRoute('/me')
+    renderRoute('/me/activity')
 
     expect(
       await screen.findByRole('heading', { name: '거래 활동을 한곳에서' }),
@@ -311,7 +311,7 @@ describe('개발자 A 핵심 거래 흐름', () => {
 
   it('내 활동에서 판매자에게 도착한 거래 요청을 기존 거래 흐름으로 연결한다', async () => {
     const user = userEvent.setup()
-    renderRoute('/me')
+    renderRoute('/me/activity')
 
     await user.click(await screen.findByRole('tab', { name: '받은 요청' }))
 
@@ -325,7 +325,7 @@ describe('개발자 A 핵심 거래 흐름', () => {
   })
 
   it('받은 후기의 작성자·별점·선택 본문을 표시하고 cursor를 지원한다', async () => {
-    renderRoute('/me?tab=reviews')
+    renderRoute('/me/activity?tab=reviews')
 
     expect(await screen.findByText('조명찾는사람')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: '별점 5점' })).toBeInTheDocument()

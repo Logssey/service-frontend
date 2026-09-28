@@ -75,4 +75,13 @@ export const authApi = {
     if (usesAuthMocks) return mockAuthRepository.me()
     return apiRequest<MyProfileResponse>('/users/me')
   },
+
+  /**
+   * MY-003 · DELETE /users/me — 진행 중인 거래를 취소하고 인증 수단을 지운다(규칙 명세 3절).
+   * 모든 Refresh Token이 폐기되고 쿠키가 만료된다. 관리자 계정은 403이다.
+   */
+  async withdraw(): Promise<void> {
+    if (usesAuthMocks) return mockAuthRepository.withdraw()
+    return apiRequest<void>('/users/me', { method: 'DELETE' })
+  },
 }
