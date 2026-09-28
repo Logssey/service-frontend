@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   // 8080이 다른 프로세스에 점유된 환경도 있어 프록시 대상을 환경변수로 뺀다. 기본값은 그대로 8080.
   const env = loadEnv(mode, currentDirectory, '')
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8080'
+  const chatProxyTarget = env.VITE_CHAT_PROXY_TARGET || 'http://localhost:3001'
 
   return {
     plugins: [react()],
@@ -27,6 +28,11 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: apiProxyTarget,
           changeOrigin: true,
+        },
+        // 채팅 실시간 수신(service-backend/chat-server). 운영에서는 Ingress가 같은 경로를 채팅 서버로 보낸다.
+        '/socket.io': {
+          target: chatProxyTarget,
+          ws: true,
         },
       },
     },

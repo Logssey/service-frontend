@@ -47,6 +47,8 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '/api/v1' }}
           VITE_USE_MOCKS: ${{ vars.VITE_USE_MOCKS || 'false' }}
+          # 채팅 서버가 배포되기 전에는 켜지 않는다. 꺼져 있으면 채팅은 REST로만 동작한다.
+          VITE_CHAT_REALTIME: ${{ vars.VITE_CHAT_REALTIME || 'false' }}
         run: npm run build
 
       - name: Configure AWS credentials

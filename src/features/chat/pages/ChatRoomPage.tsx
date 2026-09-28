@@ -8,6 +8,7 @@ import {
   useReadMessages,
   useSendMessage,
 } from '@/features/chat/model/queries'
+import { useChatRoomRealtime } from '@/features/chat/model/realtime'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 import { TradeStatusBadge } from '@/features/trades/components/TradeStatusBadge'
 import { useTrade } from '@/features/trades/model/queries'
@@ -28,6 +29,7 @@ export function ChatRoomPage() {
   const sendMessage = useSendMessage(chatRoomId)
   const deleteMessage = useDeleteMessage(chatRoomId)
   const readMessages = useReadMessages(chatRoomId)
+  useChatRoomRealtime(chatRoomId)
   const showToast = useToastStore((state) => state.show)
   const [draft, setDraft] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)

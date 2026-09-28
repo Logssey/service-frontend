@@ -70,4 +70,6 @@ VITE_USE_MOCKS=true
 
 `VITE_USE_MOCKS=false`로 전환하면 Vite 개발 서버가 `/api` 요청을 `http://localhost:8080`으로 프록시합니다.
 
-실제 API 계약에는 채팅방 단건 조회가 아직 없습니다. `/chat/:chatRoomId` 직접 진입은 현재 API 어댑터가 채팅방 목록을 순회해 복구하며, 백엔드 구현 전에 단건 조회 응답 계약을 확정해야 합니다. Socket.IO 실시간 수신은 인증·채팅 서버가 준비된 뒤 연결하고, 메시지 저장은 문서대로 HTTP API를 사용합니다.
+실제 API 계약에는 채팅방 단건 조회가 아직 없습니다. `/chat/:chatRoomId` 직접 진입은 현재 API 어댑터가 채팅방 목록을 순회해 복구하며, 백엔드 구현 전에 단건 조회 응답 계약을 확정해야 합니다.
+
+메시지 저장·조회는 HTTP API를 쓰고, 실시간 수신은 `VITE_CHAT_REALTIME=true`일 때 Socket.IO 게이트웨이(`service-backend/chat-server`)에 붙습니다. Vite 개발 서버가 `/socket.io`를 `http://localhost:3001`로 프록시하며, 채팅 서버는 `CHAT_ALLOWED_ORIGINS=http://localhost:5173`으로 띄워야 합니다. 채팅방 화면만 구독하고, 이벤트를 받으면 메시지 목록을 HTTP로 다시 읽습니다. 끄면 채팅은 화면 진입·포커스 때만 갱신됩니다.
