@@ -62,6 +62,15 @@ export class ChatSocketClient {
     }
   }
 
+  /**
+   * 로그아웃·탈퇴 뒤 연결을 끊는다. 게이트웨이는 토큰 서명만 보므로 서버가 대신 끊어 주지 않는다(ADR-005).
+   * 구독 중인 방도 모두 잊는다. 남은 해제 함수는 부르더라도 아무 일도 하지 않는다.
+   */
+  disconnect() {
+    this.rooms.clear()
+    this.close()
+  }
+
   private open() {
     if (this.socket || this.rooms.size === 0 || !this.deps.getAccessToken()) return
     const socket = this.deps.createSocket()

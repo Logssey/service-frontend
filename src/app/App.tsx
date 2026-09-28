@@ -3,6 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 // 부수효과 import — A의 인증 경계에 실제 토큰 저장소를 연결한다. 지우면 모든 요청이 익명이 된다.
 import '@/app/authWiring'
 import { NotFoundPage } from '@/app/NotFoundPage'
+import { MyPage } from '@/features/account/pages/MyPage'
+import { WithdrawalPage } from '@/features/account/pages/WithdrawalPage'
 import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoundary'
 import { AdminLayout } from '@/features/admin/components/AdminLayout'
 import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
@@ -59,7 +61,10 @@ export function AppRoutes() {
       <Route path="/listings/:listingId" element={<ListingDetailPage />} />
       <Route path="/listings/:listingId/edit" element={<ListingFormPage />} />
       <Route path="/wishes" element={<WishesPage />} />
-      <Route path="/me" element={<MyActivityPage />} />
+      {/* 마이페이지 — MY-001, MY-003 (screen-design/my-account.md). 내 활동은 MY-001 메뉴에서 들어간다 */}
+      <Route path="/me" element={<MyPage />} />
+      <Route path="/me/activity" element={<MyActivityPage />} />
+      <Route path="/me/withdraw" element={<WithdrawalPage />} />
       <Route path="/trades" element={<TradesPage />} />
       <Route path="/trades/:tradeId/review" element={<ReviewFormPage />} />
       <Route path="/trades/:tradeId" element={<TradeDetailPage />} />

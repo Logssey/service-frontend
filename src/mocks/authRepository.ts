@@ -170,6 +170,21 @@ export const mockAuthRepository = {
     session = null
   },
 
+  /**
+   * 인증 수단을 지우므로 같은 인가 코드·이메일로 다시 가입하면 새 계정이 된다(ADR-018).
+   * 거래 취소는 거래 목 저장소의 일이라 여기서 흉내 내지 않는다.
+   */
+  async withdraw(): Promise<void> {
+    await wait()
+    const current = requireSession()
+    for (const [code, member] of members) {
+      if (member.userId === current.userId) members.delete(code)
+    }
+    localAccounts = localAccounts.filter((account) => account.user.userId !== current.userId)
+    socialEmails.delete(current.userId)
+    session = null
+  },
+
   async checkNickname(nickname: string): Promise<NicknameAvailabilityResponse> {
     await wait(80)
     return { available: !this.isNicknameTaken(nickname) }
