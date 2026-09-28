@@ -1,5 +1,6 @@
 import { History, LayoutDashboard, LogOut, PackageSearch } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
+import { usesAuthMocks } from '@/features/auth/lib/authMode'
 
 export function AdminLayout() {
   return (
@@ -15,7 +16,7 @@ export function AdminLayout() {
           </span>
         </Link>
         <div className="admin-account">
-          <span>Mock ADMIN</span>
+          <span>{usesAuthMocks ? 'Mock ADMIN' : 'ADMIN'}</span>
           <Link to="/" aria-label="사용자 화면으로 이동">
             <LogOut size={17} aria-hidden="true" />
             사용자 화면

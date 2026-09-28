@@ -9,6 +9,7 @@ import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoun
 import { AdminLayout } from '@/features/admin/components/AdminLayout'
 import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
 import { AdminTradesPage } from '@/features/admin/pages/AdminTradesPage'
+import { RequireSession, SessionBootstrap } from '@/features/auth/components/SessionGuard'
 import { EmailLoginPage } from '@/features/auth/pages/EmailLoginPage'
 import { EmailSignupPage } from '@/features/auth/pages/EmailSignupPage'
 import { EmailVerificationPage } from '@/features/auth/pages/EmailVerificationPage'
@@ -44,52 +45,58 @@ const queryClient = new QueryClient({
 
 export function AppRoutes() {
   return (
-    <Routes>
-      {/* 인증 — COM-001, AUTH-001~004 */}
-      <Route path="/splash" element={<SplashPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/login/email" element={<EmailLoginPage />} />
-      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-      <Route path="/onboarding" element={<OnboardingPage />} />
-      <Route path="/signup/email" element={<EmailSignupPage />} />
-      <Route path="/verify-email" element={<EmailVerificationPage />} />
-      <Route path="/password/reset" element={<PasswordResetPage />} />
+    <SessionBootstrap>
+      <Routes>
+        {/* 인증 — COM-001, AUTH-001~004. 소유 확인·온보딩은 화면이 직접 세션을 확인한다 */}
+        <Route path="/splash" element={<SplashPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/email" element={<EmailLoginPage />} />
+        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/signup/email" element={<EmailSignupPage />} />
+        <Route path="/verify-email" element={<EmailVerificationPage />} />
+        <Route path="/password/reset" element={<PasswordResetPage />} />
 
-      <Route path="/" element={<ListingsPage />} />
-      <Route path="/search" element={<ListingSearchPage />} />
-      <Route path="/listings/new" element={<ListingFormPage />} />
-      <Route path="/listings/:listingId" element={<ListingDetailPage />} />
-      <Route path="/listings/:listingId/edit" element={<ListingFormPage />} />
-      <Route path="/wishes" element={<WishesPage />} />
-      {/* 마이페이지 — MY-001, MY-003 (screen-design/my-account.md). 내 활동은 MY-001 메뉴에서 들어간다 */}
-      <Route path="/me" element={<MyPage />} />
-      <Route path="/me/activity" element={<MyActivityPage />} />
-      <Route path="/me/withdraw" element={<WithdrawalPage />} />
-      <Route path="/trades" element={<TradesPage />} />
-      <Route path="/trades/:tradeId/review" element={<ReviewFormPage />} />
-      <Route path="/trades/:tradeId" element={<TradeDetailPage />} />
-      <Route path="/chat" element={<ChatRoomsPage />} />
-      <Route path="/chat/:chatRoomId" element={<ChatRoomPage />} />
-      <Route path="/chat-rooms" element={<ChatRoomsPage />} />
-      <Route path="/chat-rooms/:chatRoomId" element={<ChatRoomPage />} />
-      <Route path="/community" element={<CommunityPage />} />
-      <Route path="/community/new" element={<CommunityPostFormPage />} />
-      <Route path="/community/:postId/edit" element={<CommunityPostFormPage />} />
-      <Route path="/community/:postId" element={<CommunityPostDetailPage />} />
-      <Route
-        path="/admin"
-        element={
-          <AdminAccessBoundary>
-            <AdminLayout />
-          </AdminAccessBoundary>
-        }
-      >
-        <Route index element={<Navigate to="listings" replace />} />
-        <Route path="listings" element={<AdminListingsPage />} />
-        <Route path="trades" element={<AdminTradesPage />} />
-      </Route>
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+        {/* 공개 — 서버도 인증 없이 허용하는 조회(SecurityConfig permitAll) */}
+        <Route path="/" element={<ListingsPage />} />
+        <Route path="/search" element={<ListingSearchPage />} />
+        <Route path="/listings/:listingId" element={<ListingDetailPage />} />
+        <Route path="/community" element={<CommunityPage />} />
+        <Route path="/community/:postId" element={<CommunityPostDetailPage />} />
+
+        <Route element={<RequireSession />}>
+          <Route path="/listings/new" element={<ListingFormPage />} />
+          <Route path="/listings/:listingId/edit" element={<ListingFormPage />} />
+          <Route path="/wishes" element={<WishesPage />} />
+          {/* 마이페이지 — MY-001, MY-003 (screen-design/my-account.md). 내 활동은 MY-001 메뉴에서 들어간다 */}
+          <Route path="/me" element={<MyPage />} />
+          <Route path="/me/activity" element={<MyActivityPage />} />
+          <Route path="/me/withdraw" element={<WithdrawalPage />} />
+          <Route path="/trades" element={<TradesPage />} />
+          <Route path="/trades/:tradeId/review" element={<ReviewFormPage />} />
+          <Route path="/trades/:tradeId" element={<TradeDetailPage />} />
+          <Route path="/chat" element={<ChatRoomsPage />} />
+          <Route path="/chat/:chatRoomId" element={<ChatRoomPage />} />
+          <Route path="/chat-rooms" element={<ChatRoomsPage />} />
+          <Route path="/chat-rooms/:chatRoomId" element={<ChatRoomPage />} />
+          <Route path="/community/new" element={<CommunityPostFormPage />} />
+          <Route path="/community/:postId/edit" element={<CommunityPostFormPage />} />
+          <Route
+            path="/admin"
+            element={
+              <AdminAccessBoundary>
+                <AdminLayout />
+              </AdminAccessBoundary>
+            }
+          >
+            <Route index element={<Navigate to="listings" replace />} />
+            <Route path="listings" element={<AdminListingsPage />} />
+            <Route path="trades" element={<AdminTradesPage />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </SessionBootstrap>
   )
 }
 
