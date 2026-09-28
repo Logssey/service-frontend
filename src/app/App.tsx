@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 // 부수효과 import — A의 인증 경계에 실제 토큰 저장소를 연결한다. 지우면 모든 요청이 익명이 된다.
 import '@/app/authWiring'
 import { NotFoundPage } from '@/app/NotFoundPage'
@@ -7,6 +7,12 @@ import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoun
 import { AdminLayout } from '@/features/admin/components/AdminLayout'
 import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
 import { AdminTradesPage } from '@/features/admin/pages/AdminTradesPage'
+import { AdminDashboardPage } from '@/features/admin/pages/AdminDashboardPage'
+import { AdminUsersPage } from '@/features/admin/pages/AdminUsersPage'
+import { AdminReportsPage } from '@/features/admin/pages/AdminReportsPage'
+import { AdminNoticesPage } from '@/features/admin/pages/AdminNoticesPage'
+import { AdminAuditLogsPage } from '@/features/admin/pages/AdminAuditLogsPage'
+import { AdminCredentialStatusPage } from '@/features/admin/pages/AdminCredentialStatusPage'
 import { EmailLoginPage } from '@/features/auth/pages/EmailLoginPage'
 import { EmailSignupPage } from '@/features/auth/pages/EmailSignupPage'
 import { EmailVerificationPage } from '@/features/auth/pages/EmailVerificationPage'
@@ -29,7 +35,16 @@ import { ReviewFormPage } from '@/features/reviews/pages/ReviewFormPage'
 import { TradeDetailPage } from '@/features/trades/pages/TradeDetailPage'
 import { TradesPage } from '@/features/trades/pages/TradesPage'
 import { WishesPage } from '@/features/wishes/pages/WishesPage'
+import { ReportFormPage } from '@/features/reports/pages/ReportFormPage'
+import { MyReportsPage } from '@/features/reports/pages/MyReportsPage'
+import { BlocksPage } from '@/features/blocks/pages/BlocksPage'
+import { AccountSettingsPage } from '@/features/me/pages/AccountSettingsPage'
+import { NotificationsPage } from '@/features/notifications/NotificationsPage'
+import { NoticesPage, NoticeDetailPage } from '@/features/notices/NoticesPage'
+import { SellerProfilePage } from '@/features/sellers/SellerProfilePage'
+import { ChatbotPage } from '@/features/chatbot/ChatbotPage'
 import { ToastViewport } from '@/shared/components/ToastViewport'
+import { useAuthStore } from '@/features/auth/model/authStore'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +53,15 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
+})
+
+// Query keys for private data are shared by routes. Never show one account's
+// cached chat/profile/report content after logout or an account switch.
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.userId !== previous.user?.userId ||
+    (previous.accessToken !== null && state.accessToken === null)) {
+    queryClient.clear()
+  }
 })
 
 export function AppRoutes() {
@@ -60,6 +84,15 @@ export function AppRoutes() {
       <Route path="/listings/:listingId/edit" element={<ListingFormPage />} />
       <Route path="/wishes" element={<WishesPage />} />
       <Route path="/me" element={<MyActivityPage />} />
+      <Route path="/me/settings" element={<AccountSettingsPage />} />
+      <Route path="/reports/new" element={<ReportFormPage />} />
+      <Route path="/reports/me" element={<MyReportsPage />} />
+      <Route path="/blocks" element={<BlocksPage />} />
+      <Route path="/notifications" element={<NotificationsPage />} />
+      <Route path="/notices" element={<NoticesPage />} />
+      <Route path="/notices/:noticeId" element={<NoticeDetailPage />} />
+      <Route path="/users/:userId" element={<SellerProfilePage />} />
+      <Route path="/chatbot" element={<ChatbotPage />} />
       <Route path="/trades" element={<TradesPage />} />
       <Route path="/trades/:tradeId/review" element={<ReviewFormPage />} />
       <Route path="/trades/:tradeId" element={<TradeDetailPage />} />
@@ -79,9 +112,14 @@ export function AppRoutes() {
           </AdminAccessBoundary>
         }
       >
-        <Route index element={<Navigate to="listings" replace />} />
+        <Route index element={<AdminDashboardPage />} />
         <Route path="listings" element={<AdminListingsPage />} />
         <Route path="trades" element={<AdminTradesPage />} />
+        <Route path="users" element={<AdminUsersPage />} />
+        <Route path="reports" element={<AdminReportsPage />} />
+        <Route path="notices" element={<AdminNoticesPage />} />
+        <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+        <Route path="credentials" element={<AdminCredentialStatusPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string
+  /** Socket.IO endpoint origin; omitted for same-origin /socket.io. */
+  readonly VITE_CHAT_SOCKET_URL?: string
   readonly VITE_USE_MOCKS?: string
   /** 인증만 실제 백엔드에 붙일 때 'false'. 없으면 VITE_USE_MOCKS를 따른다. */
   readonly VITE_USE_MOCKS_AUTH?: string

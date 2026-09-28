@@ -164,7 +164,7 @@ export function AdminListingsPage() {
           <h1>게시글 관리</h1>
           <p>게시글을 검색하고 신고 현황에 따라 숨김·복구·삭제할 수 있습니다.</p>
         </div>
-        <small>ADMIN 권한 · Mock boundary</small>
+        <small>ADMIN 권한</small>
       </div>
 
       <section className="admin-filter-card" aria-label="게시글 검색 필터">

@@ -12,6 +12,7 @@ import { useTrades } from '@/features/trades/model/queries'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { MobileBottomNavigation } from '@/shared/layout/MobileBottomNavigation'
+import './accountSettings.css'
 
 type ActivityTab = 'listings' | 'requests' | 'reviews'
 
@@ -73,9 +74,10 @@ export function MyActivityPage() {
       <PageHeader
         title="내 활동"
         action={
-          <Link className="text-action" to="/trades">
-            거래 내역
-          </Link>
+          <span className="account-header-actions">
+            <Link className="text-action" to="/trades">거래 내역</Link>
+            <Link className="text-action" to="/me/settings">계정 설정</Link>
+          </span>
         }
       />
       <main className="content-shell my-activity-content">
@@ -87,6 +89,14 @@ export function MyActivityPage() {
           <h1>거래 활동을 한곳에서</h1>
           <p>판매 중인 상품과 새 거래 요청, 구매자가 남긴 후기를 확인하세요.</p>
         </section>
+
+        <nav className="account-quick-links" aria-label="내 서비스 바로가기">
+          <Link to="/me/settings">계정 설정</Link>
+          <Link to="/reports/me">내 신고 내역</Link>
+          <Link to="/blocks">차단한 사용자</Link>
+          <Link to="/notices">공지사항</Link>
+          <Link to="/chatbot">도움말</Link>
+        </nav>
 
         <div className="activity-tabs" role="tablist" aria-label="내 활동 유형">
           {tabs.map(({ value, label, icon: Icon }) => (

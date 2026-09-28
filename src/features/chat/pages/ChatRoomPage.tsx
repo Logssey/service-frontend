@@ -1,19 +1,25 @@
 import { MoreHorizontal, Send, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { blocksApi } from '@/features/blocks/api/blocksApi'
 import {
+  chatKeys,
   useChatRoom,
   useDeleteMessage,
   useMessages,
   useReadMessages,
   useSendMessage,
 } from '@/features/chat/model/queries'
+import { useChatRealtime } from '@/features/chat/model/useChatRealtime'
 import { ProductImage } from '@/features/listings/components/ProductImage'
+import { useListing } from '@/features/listings/model/queries'
 import { TradeStatusBadge } from '@/features/trades/components/TradeStatusBadge'
-import { useTrade } from '@/features/trades/model/queries'
+import { useCreateTrade, useTrade } from '@/features/trades/model/queries'
 import { ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { useToastStore } from '@/shared/state/toastStore'
+import './chatEnhancements.css'
 
 const timeFormatter = new Intl.DateTimeFormat('ko-KR', {
   hour: '2-digit',
@@ -22,16 +28,26 @@ const timeFormatter = new Intl.DateTimeFormat('ko-KR', {
 
 export function ChatRoomPage() {
   const chatRoomId = Number(useParams().chatRoomId)
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const roomQuery = useChatRoom(chatRoomId)
   const messagesQuery = useMessages(chatRoomId)
   const tradeQuery = useTrade(roomQuery.data?.tradeId ?? Number.NaN)
+  const listingQuery = useListing(roomQuery.data?.listing.listingId ?? Number.NaN)
+  const createTrade = useCreateTrade()
   const sendMessage = useSendMessage(chatRoomId)
   const deleteMessage = useDeleteMessage(chatRoomId)
   const readMessages = useReadMessages(chatRoomId)
   const showToast = useToastStore((state) => state.show)
   const [draft, setDraft] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [blocking, setBlocking] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const olderScrollRef = useRef<{ height: number; top: number } | null>(null)
+  const initialScrollDoneRef = useRef(false)
+  const latestMessageIdRef = useRef<number | null>(null)
   const lastReadRequestRef = useRef<number | null>(null)
+  useChatRealtime([chatRoomId])
   const messages = useMemo(
     () =>
       (messagesQuery.data?.pages.flatMap((page) => page.items) ?? []).sort(
@@ -58,11 +74,42 @@ export function ChatRoomPage() {
     }
   }, [messages, readMessages, roomQuery.data])
 
-  useEffect(() => {
-    if (messages.length > 0) {
+  useLayoutEffect(() => {
+    if (messagesQuery.isLoading) return
+    const snapshot = olderScrollRef.current
+    const newest = messages.at(-1)
+    if (snapshot) {
+      window.scrollTo(0, snapshot.top + document.documentElement.scrollHeight - snapshot.height)
+      olderScrollRef.current = null
+    } else if (!initialScrollDoneRef.current ||
+      (newest?.messageId !== latestMessageIdRef.current &&
+        (newest?.isMine || window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 240))) {
       bottomRef.current?.scrollIntoView?.({ block: 'end' })
     }
-  }, [messages.length])
+    initialScrollDoneRef.current = true
+    latestMessageIdRef.current = newest?.messageId ?? null
+  }, [messages, messagesQuery.isLoading])
+
+  const loadOlderMessages = async () => {
+    olderScrollRef.current = { height: document.documentElement.scrollHeight, top: window.scrollY }
+    const result = await messagesQuery.fetchNextPage()
+    if (result.isError) olderScrollRef.current = null
+  }
+
+  const blockCounterparty = async (userId: number) => {
+    if (blocking || !window.confirm('이 사용자를 차단하시겠습니까? 차단하면 거래와 메시지 교환이 제한됩니다.')) return
+    setBlocking(true)
+    try {
+      await blocksApi.create(userId)
+      await queryClient.invalidateQueries({ queryKey: ['blocks'] })
+      await queryClient.invalidateQueries({ queryKey: chatKeys.all })
+      showToast('사용자를 차단했습니다.')
+      navigate('/chat', { replace: true })
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '사용자를 차단하지 못했습니다.')
+      setBlocking(false)
+    }
+  }
 
   if (roomQuery.isLoading || messagesQuery.isLoading) {
     return (
@@ -108,14 +155,23 @@ export function ChatRoomPage() {
       <PageHeader
         title={room.counterparty.nickname}
         action={
-          <button
-            className="icon-button"
-            type="button"
-            aria-label="채팅방 더보기"
-            onClick={() => showToast('차단·신고는 개발자 B 기능과 연결됩니다.')}
-          >
-            <MoreHorizontal aria-hidden="true" />
-          </button>
+          <div className="chat-room-actions">
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="채팅방 더보기"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <MoreHorizontal aria-hidden="true" />
+            </button>
+            {menuOpen ? (
+              <div className="chat-room-actions__menu">
+                <Link to={`/reports/new?targetType=USER&targetId=${room.counterparty.userId}`}>사용자 신고</Link>
+                <button type="button" disabled={blocking} onClick={() => void blockCounterparty(room.counterparty.userId)}>사용자 차단</button>
+              </div>
+            ) : null}
+          </div>
         }
       />
       <main className="chat-content">
@@ -137,6 +193,23 @@ export function ChatRoomPage() {
               {tradeQuery.data ? <TradeStatusBadge status={tradeQuery.data.status} /> : null}
               <span>거래 상세</span>
             </Link>
+          ) : listingQuery.data && !listingQuery.data.isMine ? (
+            <button
+              className="chat-context__trade chat-context__request"
+              type="button"
+              disabled={createTrade.isPending}
+              onClick={() => createTrade.mutate(room.listing.listingId, {
+                onSuccess: ({ tradeId }) => {
+                  void queryClient.invalidateQueries({ queryKey: chatKeys.room(chatRoomId) })
+                  void queryClient.invalidateQueries({ queryKey: chatKeys.rooms() })
+                  showToast('거래를 요청했습니다.')
+                  navigate(`/trades/${tradeId}`)
+                },
+                onError: (error) => showToast(error instanceof Error ? error.message : '거래를 요청하지 못했습니다.'),
+              })}
+            >
+              {createTrade.isPending ? '요청 중…' : '거래 요청'}
+            </button>
           ) : null}
         </section>
 
@@ -146,7 +219,7 @@ export function ChatRoomPage() {
               className="message-list__more"
               type="button"
               disabled={messagesQuery.isFetchingNextPage}
-              onClick={() => void messagesQuery.fetchNextPage()}
+              onClick={() => void loadOlderMessages()}
             >
               {messagesQuery.isFetchingNextPage ? '불러오는 중…' : '이전 메시지 보기'}
             </button>
@@ -186,6 +259,9 @@ export function ChatRoomPage() {
                   >
                     <Trash2 size={13} aria-hidden="true" />
                   </button>
+                ) : null}
+                {!message.isMine && !message.isDeleted ? (
+                  <Link to={`/reports/new?targetType=MESSAGE&targetId=${message.messageId}`} aria-label="메시지 신고">신고</Link>
                 ) : null}
               </div>
             </article>

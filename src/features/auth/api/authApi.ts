@@ -12,6 +12,21 @@ import type {
 import { mockAuthRepository } from '@/mocks/authRepository'
 import { apiRequest } from '@/shared/api/http'
 
+let refreshInFlight: Promise<AccessTokenResponse> | null = null
+
+function refreshWithTabLock(): Promise<AccessTokenResponse> {
+  const request = () => apiRequest<AccessTokenResponse>(
+    '/auth/refresh',
+    { method: 'POST' },
+    { skipAuthRecovery: true, omitAccessToken: true },
+  )
+  // Refresh tokens rotate on every use. Serialize across tabs so the second tab
+  // sends the cookie set by the first response, not an already-spent token.
+  return typeof navigator !== 'undefined' && navigator.locks?.request
+    ? navigator.locks.request('reused-auth-refresh', request)
+    : request()
+}
+
 /**
  * 소셜 인증·세션·본인 정보 API(05-api/endpoints/auth, users).
  * 이메일 계정 전용 호출은 emailAuthApi에 있다.
@@ -24,7 +39,7 @@ export const authApi = {
     return apiRequest<OAuthLoginResponse>(
       `/auth/oauth/${provider}`,
       { method: 'POST', body: JSON.stringify(request) },
-      { skipAuthRecovery: true },
+      { skipAuthRecovery: true, omitAccessToken: true },
     )
   },
 
@@ -38,20 +53,22 @@ export const authApi = {
     return apiRequest<AuthTokenResponse>(
       '/auth/signup',
       { method: 'POST', body: JSON.stringify(request) },
-      { skipAuthRecovery: true },
+      { skipAuthRecovery: true, omitAccessToken: true },
     )
   },
 
   /** COM-001 · POST /auth/refresh — Refresh Token 쿠키로 세션을 복구한다. */
-  async refresh(): Promise<AccessTokenResponse> {
+  refresh(): Promise<AccessTokenResponse> {
     if (usesAuthMocks) return mockAuthRepository.refresh()
 
-    // 재발급 자체가 401이면 복구할 방법이 없으므로 재시도 경로를 타지 않는다
-    return apiRequest<AccessTokenResponse>(
-      '/auth/refresh',
-      { method: 'POST' },
-      { skipAuthRecovery: true },
-    )
+    // A single page can have many simultaneous 401 responses (queries, socket,
+    // splash). Share the rotating refresh operation across all of them.
+    if (!refreshInFlight) {
+      refreshInFlight = refreshWithTabLock().finally(() => {
+        refreshInFlight = null
+      })
+    }
+    return refreshInFlight
   },
 
   /** POST /auth/logout */
@@ -74,5 +91,26 @@ export const authApi = {
   async me(): Promise<MyProfileResponse> {
     if (usesAuthMocks) return mockAuthRepository.me()
     return apiRequest<MyProfileResponse>('/users/me')
+  },
+
+  async updateProfile(request: { nickname?: string; bio?: string | null; imageId?: number | null }): Promise<MyProfileResponse> {
+    if (usesAuthMocks) return mockAuthRepository.updateProfile(request)
+    return apiRequest<MyProfileResponse>('/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(request),
+    })
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    if (usesAuthMocks) return mockAuthRepository.changePassword(currentPassword, newPassword)
+    return apiRequest<void>('/users/me/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+  },
+
+  async withdraw(): Promise<void> {
+    if (usesAuthMocks) return mockAuthRepository.withdraw()
+    return apiRequest<void>('/users/me', { method: 'DELETE' })
   },
 }

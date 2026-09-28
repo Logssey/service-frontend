@@ -1,0 +1,10 @@
+.form-card { display: grid; gap: 12px; margin: 16px auto; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.form-card h1 { margin: 0; font-size: 1.3rem; }
+.form-card p { margin: 0; color: var(--ink-soft); }
+.form-card label { margin-top: 8px; font-weight: 700; }
+.form-card select, .form-card textarea { width: 100%; padding: 11px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.form-card textarea { min-height: 130px; resize: vertical; }
+.collection-page .admin-table-card ul { margin: 0; padding: 0 16px; list-style: none; }
+.collection-page .admin-table-card li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.collection-page .admin-table-card li:last-child { border-bottom: 0; }
+.collection-page .admin-table-card li p { width: 100%; margin: 0; color: var(--ink-soft); font-size: .82rem; }

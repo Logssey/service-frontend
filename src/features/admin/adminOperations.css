@@ -1,0 +1,16 @@
+.admin-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.admin-metric-card { display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-sm); }
+.admin-metric-card span { color: var(--ink-soft); font-size: .82rem; }
+.admin-metric-card strong { color: var(--brand-deep); font-size: 1.8rem; }
+.admin-dashboard-links { display: flex; gap: 8px; }
+.admin-search-form select { min-width: 110px; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; }
+.admin-filter-card form:not(.admin-search-form) { display: grid; gap: 14px; }
+.admin-filter-card form:not(.admin-search-form) label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .83rem; font-weight: 650; }
+.admin-filter-card form:not(.admin-search-form) input:not([type="checkbox"]), .admin-filter-card form:not(.admin-search-form) textarea, .admin-filter-card form:not(.admin-search-form) select { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.admin-filter-card form:not(.admin-search-form) textarea { min-height: 90px; resize: vertical; }
+.admin-table td small { display: block; margin-top: 5px; color: var(--ink-faint); }
+.admin-table td p { max-width: 230px; margin: 5px 0 0; overflow-wrap: anywhere; }
+.admin-table td button:not(.button) { min-height: 32px; padding: 3px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--brand-deep); font-weight: 700; }
+.admin-notices-page .admin-filter-card p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-feature-switch { display: flex; align-items: center; gap: 9px; font-weight: 750; }
+.admin-feature-switch input { width: 18px; height: 18px; accent-color: var(--brand); }

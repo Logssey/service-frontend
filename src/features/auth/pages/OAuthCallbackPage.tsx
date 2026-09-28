@@ -49,7 +49,9 @@ export function OAuthCallbackPage() {
         }
         if (response.accessToken) {
           setSession(response.accessToken, response.user)
-          navigate('/', { replace: true })
+          void authApi.me().then((profile) => {
+            navigate(profile.role === 'ADMIN' ? '/admin' : '/', { replace: true })
+          }).catch(() => navigate('/', { replace: true }))
           return
         }
         navigate('/login', { replace: true, state: { message: '로그인에 실패했습니다.' } })

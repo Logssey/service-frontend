@@ -70,8 +70,9 @@ interface IssuedCode {
 const CODE_TTL_MINUTES = 10
 const CODE_MAX_ATTEMPTS = 5
 
-let members = new Map(initialMembers)
+let members = new Map([...initialMembers].map(([key, user]) => [key, structuredClone(user)]))
 let localAccounts = structuredClone(initialLocalAccounts)
+let bios = new Map<number, string | null>()
 /**
  * 온보딩에서 선택 입력한 소셜 계정 이메일(ADR-016). userId 기준이다.
  * 식별자가 아니므로 이메일 로그인·재설정 조회에는 쓰지 않는다.
@@ -183,7 +184,7 @@ export const mockAuthRepository = {
       userId: current.userId,
       nickname: current.nickname,
       profileImageUrl: current.profileImageUrl,
-      bio: null,
+      bio: bios.get(current.userId) ?? null,
       role: 'USER',
       status: 'ACTIVE',
       suspendedUntil: null,
@@ -192,6 +193,50 @@ export const mockAuthRepository = {
       emailVerified: target?.emailVerified ?? false,
       createdAt: '2026-01-10T03:00:00Z',
     }
+  },
+
+  async updateProfile(request: { nickname?: string; bio?: string | null; imageId?: number | null }): Promise<MyProfileResponse> {
+    await wait()
+    const current = requireSession()
+    if (request.nickname !== undefined) {
+      const nickname = request.nickname.trim()
+      if (nickname.length < 2 || nickname.length > 20 || (nickname !== current.nickname && this.isNicknameTaken(nickname))) {
+        throw new ApiClientError(409, 'CONFLICT', '사용할 수 없는 닉네임입니다.')
+      }
+      current.nickname = nickname
+    }
+    if (request.bio !== undefined) bios.set(current.userId, request.bio)
+    if (request.imageId === null) current.profileImageUrl = null
+    if (request.imageId !== undefined && request.imageId !== null) {
+      current.profileImageUrl = `/images/mock-profile-${request.imageId}.png`
+    }
+    return this.me()
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await wait()
+    const current = requireSession()
+    const account = findAccountOf(current)
+    if (!account || account.password !== currentPassword) {
+      throw new ApiClientError(401, 'UNAUTHENTICATED', '현재 비밀번호가 올바르지 않습니다.')
+    }
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      throw new ApiClientError(400, 'INVALID_INPUT', '새 비밀번호는 8~128자여야 합니다.')
+    }
+    account.password = newPassword
+    session = null
+  },
+
+  async withdraw(): Promise<void> {
+    await wait()
+    const current = requireSession()
+    localAccounts = localAccounts.filter((account) => account.user.userId !== current.userId)
+    for (const [key, member] of members) {
+      if (member.userId === current.userId) members.delete(key)
+    }
+    socialEmails.delete(current.userId)
+    bios.delete(current.userId)
+    session = null
   },
 
   isNicknameTaken(nickname: string) {
@@ -329,8 +374,9 @@ export const mockAuthRepository = {
   },
 
   reset() {
-    members = new Map(initialMembers)
+    members = new Map([...initialMembers].map(([key, user]) => [key, structuredClone(user)]))
     localAccounts = structuredClone(initialLocalAccounts)
+    bios = new Map()
     socialEmails = new Map()
     codes = new Map()
     session = null

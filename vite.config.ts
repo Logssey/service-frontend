@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   // 8080이 다른 프로세스에 점유된 환경도 있어 프록시 대상을 환경변수로 뺀다. 기본값은 그대로 8080.
   const env = loadEnv(mode, currentDirectory, '')
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8080'
+  const chatProxyTarget = env.VITE_CHAT_PROXY_TARGET || 'http://localhost:3001'
 
   return {
     plugins: [react()],
@@ -28,12 +29,20 @@ export default defineConfig(({ mode }) => {
           target: apiProxyTarget,
           changeOrigin: true,
         },
+        '/socket.io': {
+          target: chatProxyTarget,
+          changeOrigin: true,
+          ws: true,
+        },
       },
     },
     test: {
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
       css: true,
+      // 여러 jsdom 워커가 동시에 뜨면 느린 CI/개발 PC에서 userEvent 타이밍이 흔들린다.
+      maxWorkers: 2,
+      testTimeout: 15_000,
       // .env는 테스트 모드에도 로드된다. 개발자가 실연동을 켜둔 상태로 테스트를 돌리면
       // 목이 아니라 실제 fetch가 나가므로, 테스트는 목 모드로 못 박는다.
       env: {

@@ -52,7 +52,7 @@ export function consumeState(): string | null {
 
 export function getRedirectUri(): string {
   return (
-    import.meta.env.VITE_KAKAO_REDIRECT_URI ?? `${window.location.origin}/oauth/callback`
+    import.meta.env.VITE_KAKAO_REDIRECT_URI || `${window.location.origin}/oauth/callback`
   )
 }
 

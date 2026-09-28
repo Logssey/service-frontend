@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authApi } from '@/features/auth/api/authApi'
 import { ProfileImagePicker } from '@/features/auth/components/ProfileImagePicker'
+import { deleteProfileUpload, uploadProfileImage } from '@/features/auth/api/profileImageApi'
 import {
   EMAIL_MAX,
   NICKNAME_MAX,
@@ -27,6 +28,7 @@ export function OnboardingPage() {
   const navigate = useNavigate()
   const signupToken = useAuthStore((state) => state.signupToken)
   const setSession = useAuthStore((state) => state.setSession)
+  const setUser = useAuthStore((state) => state.setUser)
 
   const [nickname, setNickname] = useState('')
   const [checked, setChecked] = useState<{ nickname: string; available: boolean } | null>(null)
@@ -37,6 +39,8 @@ export function OnboardingPage() {
   const [privacyAgreed, setPrivacyAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [profileImage, setProfileImage] = useState<File | null>(null)
+  const [imageWarning, setImageWarning] = useState<string | null>(null)
   // 가입에 성공하면 signupToken이 비워진다. 그것을 "토큰 없이 진입"으로 오해하면
   // 홈으로 가려는 순간 로그인 화면으로 튕겨낸다.
   const completed = useRef(false)
@@ -99,6 +103,18 @@ export function OnboardingPage() {
       })
       completed.current = true
       setSession(session.accessToken, session.user)
+      if (profileImage) {
+        let imageId: number | null = null
+        try {
+          imageId = await uploadProfileImage(profileImage)
+          const profile = await authApi.updateProfile({ imageId })
+          setUser({ userId: profile.userId, nickname: profile.nickname, profileImageUrl: profile.profileImageUrl })
+        } catch {
+          if (imageId !== null) await deleteProfileUpload(imageId).catch(() => {})
+          setImageWarning('계정은 생성됐지만 프로필 이미지를 저장하지 못했습니다. 내 정보에서 다시 등록해 주세요.')
+          return
+        }
+      }
       // 이메일을 입력했으면 소유 확인 메일이 발송되어 있다. 확인은 건너뛸 수 있다.
       navigate(emailEntered ? '/verify-email' : '/', { replace: true })
     } catch (cause: unknown) {
@@ -119,7 +135,16 @@ export function OnboardingPage() {
           <p>거래 상대에게 보이는 이름입니다. 나중에 바꿀 수 있어요.</p>
         </div>
 
-        <ProfileImagePicker label="프로필 이미지 (선택)" />
+        <ProfileImagePicker label="프로필 이미지 (선택)" value={profileImage} onChange={setProfileImage} disabled={submitting} />
+
+        {imageWarning ? (
+          <div className="auth-alert" role="alert">
+            <p>{imageWarning}</p>
+            <button type="button" className="button button--secondary" onClick={() => navigate(emailEntered ? '/verify-email' : '/', { replace: true })}>
+              계속하기
+            </button>
+          </div>
+        ) : null}
 
         <form className="auth-form" onSubmit={submit}>
           <div className="field">

@@ -1,16 +1,27 @@
 import { Bell, ChevronDown, Search, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ListingCard } from '@/features/listings/components/ListingCard'
 import { useListingFilterStore } from '@/features/listings/model/listingStore'
 import { useCategories, useListings } from '@/features/listings/model/queries'
 import type { ListingSort } from '@/features/listings/model/types'
+import { notificationsApi } from '@/features/notifications/api/notificationsApi'
+import { authApi } from '@/features/auth/api/authApi'
+import { useAuthStore } from '@/features/auth/model/authStore'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { MobileBottomNavigation } from '@/shared/layout/MobileBottomNavigation'
-import { useToastStore } from '@/shared/state/toastStore'
 
 export function ListingsPage() {
   const filterStore = useListingFilterStore()
-  const showToast = useToastStore((state) => state.show)
+  const accessToken = useAuthStore((state) => state.accessToken)
+  const myProfile = useQuery({ queryKey: ['auth', 'me', accessToken], queryFn: authApi.me,
+    enabled: Boolean(accessToken), retry: false })
+  const unread = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: notificationsApi.unreadCount,
+    retry: false,
+    refetchInterval: (query) => query.state.data ? 30_000 : false,
+  })
   const filters = {
     keyword: filterStore.keyword,
     categoryId: filterStore.categoryId,
@@ -43,18 +54,22 @@ export function ListingsPage() {
           <span>{filters.keyword || '어떤 물건을 찾고 계세요?'}</span>
         </Link>
         <div className="site-header__actions">
+          {myProfile.data?.role === 'ADMIN' ? <Link className="text-action" to="/admin">관리자</Link> : null}
           <Link className="icon-button mobile-only" to="/search" aria-label="검색">
             <Search aria-hidden="true" />
           </Link>
-          <button
+          <Link
             className="icon-button notification-button"
-            type="button"
             aria-label="알림"
-            onClick={() => showToast('알림 화면은 다음 단계에서 연결됩니다.')}
+            to="/notifications"
           >
             <Bell aria-hidden="true" />
-            <span aria-label="읽지 않은 알림 2개" />
-          </button>
+            {unread.data && unread.data.count > 0 ? (
+              <span aria-label={`읽지 않은 알림 ${unread.data.count}개`}>
+                {unread.data.count > 99 ? '99+' : unread.data.count}
+              </span>
+            ) : null}
+          </Link>
           <Link className="sell-button sell-button--desktop" to="/listings/new">
             판매하기
           </Link>
