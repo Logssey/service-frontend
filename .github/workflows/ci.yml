@@ -48,13 +48,23 @@ jobs:
       #
       # 번들은 브라우저로 전달되므로 비밀을 넣지 않는다.
       # Variables 에 값이 없으면 기본값을 쓴다.
+      #
+      # 카카오 REST API 키는 기본값이 없다. 비어 있으면 번들이 빈 client_id 로 인가를 요청해
+      # 카카오 로그인이 실패하므로 경고를 남긴다.
+      - name: Check Kakao client id
+        if: vars.VITE_KAKAO_CLIENT_ID == ''
+        run: echo "::warning::저장소 Variables에 VITE_KAKAO_CLIENT_ID가 없습니다. 이 번들로는 카카오 로그인이 동작하지 않습니다."
+
       - name: Build
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '/api/v1' }}
           VITE_USE_MOCKS: ${{ vars.VITE_USE_MOCKS || 'false' }}
-          VITE_CHAT_SOCKET_URL: ${{ vars.VITE_CHAT_SOCKET_URL || '' }}
-          VITE_KAKAO_CLIENT_ID: ${{ vars.VITE_KAKAO_CLIENT_ID || '' }}
+          # 카카오 REST API 키. 인가 요청 주소에 그대로 드러나는 공개 값이라 Secrets 가 아니라 Variables 에 둔다.
+          # Client Secret 은 백엔드 전용이며 여기에 넣지 않는다.
+          VITE_KAKAO_CLIENT_ID: ${{ vars.VITE_KAKAO_CLIENT_ID }}
+          # 리다이렉트 URI 는 비어 있으면 접속 도메인 + /oauth/callback을 쓴다.
           VITE_KAKAO_REDIRECT_URI: ${{ vars.VITE_KAKAO_REDIRECT_URI || '' }}
+          VITE_CHAT_SOCKET_URL: ${{ vars.VITE_CHAT_SOCKET_URL || '' }}
           # 채팅 서버가 배포되기 전에는 켜지 않는다. 꺼져 있으면 채팅은 REST로만 동작한다.
           VITE_CHAT_REALTIME: ${{ vars.VITE_CHAT_REALTIME || 'false' }}
         run: npm run build
