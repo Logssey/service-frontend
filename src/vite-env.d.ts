@@ -10,6 +10,8 @@ interface ImportMetaEnv {
   /** 카카오 REST API 키. 인가 코드 방식은 JavaScript 키가 아니라 REST API 키를 쓴다. */
   readonly VITE_KAKAO_CLIENT_ID?: string
   readonly VITE_KAKAO_REDIRECT_URI?: string
+  /** 채팅 실시간 수신을 켤 때 'true'. 목 모드에서는 쓰지 않는다. */
+  readonly VITE_CHAT_REALTIME?: string
 }
 
 interface ImportMeta {
