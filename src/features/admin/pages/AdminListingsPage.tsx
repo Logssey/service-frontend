@@ -12,6 +12,7 @@ import type {
   AdminListingResponse,
   AdminListingStatusFilter,
 } from '@/features/admin/model/types'
+import { usesAuthMocks } from '@/features/auth/lib/authMode'
 import { ListingStatusBadge } from '@/features/listings/components/ListingStatusBadge'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { useToastStore } from '@/shared/state/toastStore'
@@ -164,7 +165,7 @@ export function AdminListingsPage() {
           <h1>게시글 관리</h1>
           <p>게시글을 검색하고 신고 현황에 따라 숨김·복구·삭제할 수 있습니다.</p>
         </div>
-        <small>ADMIN 권한</small>
+        <small>{usesAuthMocks ? 'ADMIN 권한 · Mock boundary' : 'ADMIN 권한'}</small>
       </div>
 
       <section className="admin-filter-card" aria-label="게시글 검색 필터">

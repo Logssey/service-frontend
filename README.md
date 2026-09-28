@@ -86,6 +86,6 @@ VITE_USE_MOCKS=true
 
 `VITE_USE_MOCKS=false`로 전환하면 Vite 개발 서버가 `/api` 요청을 `VITE_API_PROXY_TARGET`(기본 `http://localhost:8080`)으로, `/socket.io` 요청을 `VITE_CHAT_PROXY_TARGET`(기본 `http://localhost:3001`)으로 프록시한다. 운영 프록시에도 두 경로 모두 필요하며 WebSocket 업그레이드를 전달해야 한다.
 
-CI 프로덕션 빌드는 GitHub Variables의 `VITE_KAKAO_CLIENT_ID`, `VITE_KAKAO_REDIRECT_URI`, `VITE_CHAT_SOCKET_URL`을 번들에 반영한다. 이 값은 공개 클라이언트 설정이며 비밀 키가 아니다. 같은 Origin에서 `/socket.io`를 채팅 게이트웨이로 라우팅한다면 `VITE_CHAT_SOCKET_URL`은 비워둔다. 라우팅도 별도 URL도 없다면 운영 실시간 채팅은 연결되지 않는다.
+CI 프로덕션 빌드는 GitHub Variables의 `VITE_KAKAO_CLIENT_ID`, `VITE_KAKAO_REDIRECT_URI`, `VITE_CHAT_REALTIME`, `VITE_CHAT_SOCKET_URL`을 번들에 반영한다. 이 값은 공개 클라이언트 설정이며 비밀 키가 아니다. 실시간 채팅을 켜려면 `VITE_CHAT_REALTIME=true`로 설정하고 같은 Origin의 `/socket.io`를 채팅 게이트웨이로 라우팅하거나 `VITE_CHAT_SOCKET_URL`에 별도 게이트웨이 주소를 지정한다.
 
-실제 API 계약에는 채팅방 단건 조회가 없다. `/chat/:chatRoomId` 직접 진입은 현재 API 어댑터가 채팅방 목록을 순회해 복구한다. Socket.IO는 연결 후 인증·구독 확인을 거쳐 실시간 이벤트를 수신하고, 메시지 저장은 HTTP API를 사용한다. 추천 질문 챗봇만 제공하며 자유입력은 개인정보 전송 정책에 따라 비활성이다.
+실제 API 계약에는 채팅방 단건 조회가 없다. `/chat/:chatRoomId` 직접 진입은 현재 API 어댑터가 채팅방 목록을 순회해 복구한다. 메시지 저장·조회는 HTTP API를 쓰고, 실시간 이벤트는 Socket.IO로 받은 뒤 HTTP에서 다시 읽는다. Vite 개발 서버는 `/socket.io`를 `VITE_CHAT_PROXY_TARGET`으로 프록시하며 게이트웨이에 브라우저 Origin을 허용해야 한다. 실시간이 꺼지면 채팅 목록과 메시지는 30초마다 갱신된다. 추천 질문 챗봇만 제공하며 자유입력은 개인정보 전송 정책에 따라 비활성이다.

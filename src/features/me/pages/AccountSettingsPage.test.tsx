@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useAuthStore } from '@/features/auth/model/authStore'
 import { AccountSettingsPage } from '@/features/me/pages/AccountSettingsPage'
 import { mockAuthRepository } from '@/mocks/authRepository'
@@ -54,18 +54,15 @@ describe('계정 설정', () => {
     renderSettings()
     await screen.findByDisplayValue('테스트계정')
     fireEvent.click(screen.getByRole('button', { name: '로그아웃' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '로그아웃할까요?' })).getByRole('button', { name: '로그아웃' }))
     expect(await screen.findByText('로그인 화면')).toBeInTheDocument()
     expect(useAuthStore.getState().accessToken).toBeNull()
     await expect(mockAuthRepository.me()).rejects.toThrow()
   })
 
-  it('확인한 회원 탈퇴는 계정을 삭제하고 로그인으로 이동한다', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  it('회원 탈퇴 안내와 거래 확인 화면으로 연결한다', async () => {
     renderSettings()
     await screen.findByDisplayValue('테스트계정')
-    fireEvent.click(screen.getByRole('button', { name: '회원 탈퇴' }))
-    expect(await screen.findByText('로그인 화면')).toBeInTheDocument()
-    await expect(mockAuthRepository.emailLogin({ email: 'test@reused.dev', password: 'test1234' })).rejects.toThrow()
-    vi.restoreAllMocks()
+    expect(screen.getByRole('link', { name: '회원 탈퇴' })).toHaveAttribute('href', '/me/withdraw')
   })
 })

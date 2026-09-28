@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
           target: apiProxyTarget,
           changeOrigin: true,
         },
+        // 채팅 실시간 수신(service-backend/chat-server). 운영에서는 Ingress가 같은 경로를 채팅 서버로 보낸다.
         '/socket.io': {
           target: chatProxyTarget,
           changeOrigin: true,

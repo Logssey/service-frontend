@@ -145,6 +145,13 @@
   font-size: 0.85rem;
 }
 
+/* 로그아웃·탈퇴 완료처럼 오류가 아닌 안내 */
+.auth-alert--info {
+  border-color: #c9ccf5;
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+}
+
 .auth-terms {
   margin: 0;
   color: var(--ink-faint);

@@ -1,6 +1,9 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { LogoutDialog } from '@/features/account/components/LogoutDialog'
+import { accountKeys, useMyProfile } from '@/features/account/model/queries'
+import { useEndSession } from '@/features/account/model/useEndSession'
 import { authApi } from '@/features/auth/api/authApi'
 import { deleteProfileUpload, uploadProfileImage } from '@/features/auth/api/profileImageApi'
 import { PasswordField } from '@/features/auth/components/PasswordField'
@@ -17,11 +20,10 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export function AccountSettingsPage() {
-  const navigate = useNavigate()
+  const endSession = useEndSession()
   const queryClient = useQueryClient()
   const setUser = useAuthStore((state) => state.setUser)
-  const clearSession = useAuthStore((state) => state.clear)
-  const profileQuery = useQuery({ queryKey: ['account', 'profile'], queryFn: authApi.me })
+  const profileQuery = useMyProfile()
   const profile = profileQuery.data
   const [nicknameInput, setNicknameInput] = useState<string | null>(null)
   const [bioInput, setBioInput] = useState<string | null>(null)
@@ -34,10 +36,7 @@ export function AccountSettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordPending, setPasswordPending] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [withdrawing, setWithdrawing] = useState(false)
-  const [withdrawError, setWithdrawError] = useState<string | null>(null)
-  const [loggingOut, setLoggingOut] = useState(false)
-  const [logoutError, setLogoutError] = useState<string | null>(null)
+  const [confirmingLogout, setConfirmingLogout] = useState(false)
 
   const nickname = nicknameInput ?? profile?.nickname ?? ''
   const bio = bioInput ?? profile?.bio ?? ''
@@ -56,8 +55,8 @@ export function AccountSettingsPage() {
         ...(uploadedImageId !== null ? { imageId: uploadedImageId } : removeImage ? { imageId: null } : {}),
       })
       setUser({ userId: updated.userId, nickname: updated.nickname, profileImageUrl: updated.profileImageUrl })
-      queryClient.setQueryData(['account', 'profile'], updated)
-      await queryClient.invalidateQueries({ queryKey: ['me'] })
+      queryClient.setQueryData(accountKeys.me(), updated)
+      await queryClient.invalidateQueries({ queryKey: accountKeys.sellerProfile(updated.userId) })
       setNicknameInput(null)
       setBioInput(null)
       setImage(null)
@@ -78,42 +77,10 @@ export function AccountSettingsPage() {
     setPasswordError(null)
     try {
       await authApi.changePassword(currentPassword, newPassword)
-      clearSession()
-      queryClient.clear()
-      navigate('/login', { replace: true, state: { message: '비밀번호가 변경됐습니다. 다시 로그인해 주세요.' } })
+      endSession({ message: '비밀번호가 변경됐습니다. 다시 로그인해 주세요.', tone: 'info' })
     } catch (error) {
       setPasswordError(errorMessage(error, '비밀번호를 변경하지 못했습니다.'))
       setPasswordPending(false)
-    }
-  }
-
-  const logout = async () => {
-    if (loggingOut) return
-    setLoggingOut(true)
-    setLogoutError(null)
-    try {
-      await authApi.logout()
-      clearSession()
-      queryClient.clear()
-      navigate('/login', { replace: true, state: { message: '로그아웃했습니다.' } })
-    } catch (error) {
-      setLogoutError(errorMessage(error, '로그아웃하지 못했습니다. 다시 시도해 주세요.'))
-      setLoggingOut(false)
-    }
-  }
-
-  const withdraw = async () => {
-    if (withdrawing || !window.confirm('회원 탈퇴 시 진행 중인 거래가 취소되고 계정을 복구할 수 없습니다. 탈퇴하시겠습니까?')) return
-    setWithdrawing(true)
-    setWithdrawError(null)
-    try {
-      await authApi.withdraw()
-      clearSession()
-      queryClient.clear()
-      navigate('/login', { replace: true, state: { message: '회원 탈퇴가 완료되었습니다.' } })
-    } catch (error) {
-      setWithdrawError(errorMessage(error, '회원 탈퇴를 처리하지 못했습니다.'))
-      setWithdrawing(false)
     }
   }
 
@@ -122,7 +89,7 @@ export function AccountSettingsPage() {
 
   return (
     <div className="app-page collection-page account-settings-page">
-      <PageHeader title="계정 설정" action={<Link className="text-action" to="/me">내 활동</Link>} />
+      <PageHeader title="계정 설정" action={<Link className="text-action" to="/me">마이페이지</Link>} />
       <main className="content-shell account-settings">
         <section className="account-settings__section">
           <h1>프로필</h1>
@@ -159,9 +126,7 @@ export function AccountSettingsPage() {
           <h2>로그인 정보</h2>
           <p>로그인 방법: {profile.provider === 'LOCAL' ? '이메일' : '카카오'}</p>
           <p>이메일: {profile.email ?? '등록되지 않음'} {profile.email && !profile.emailVerified ? <Link to="/verify-email">인증하기</Link> : null}</p>
-          {logoutError ? <p className="field-error" role="alert">{logoutError}</p> : null}
-          <button className="button button--secondary" type="button" disabled={loggingOut}
-            onClick={() => void logout()}>{loggingOut ? '로그아웃 중…' : '로그아웃'}</button>
+          <button className="button button--secondary" type="button" onClick={() => setConfirmingLogout(true)}>로그아웃</button>
           {profile.provider === 'LOCAL' && profile.role === 'USER' ? (
             <form className="auth-form" onSubmit={(event) => void submitPassword(event)}>
               <PasswordField label="현재 비밀번호" value={currentPassword} placeholder="현재 비밀번호" autoComplete="current-password" onChange={setCurrentPassword} />
@@ -181,13 +146,11 @@ export function AccountSettingsPage() {
           <section className="account-settings__section account-settings__danger">
             <h2>회원 탈퇴</h2>
             <p>탈퇴하면 계정이 삭제되고 진행 중인 거래가 취소됩니다.</p>
-            {withdrawError ? <p className="field-error" role="alert">{withdrawError}</p> : null}
-            <button className="button button--secondary" type="button" disabled={withdrawing} onClick={() => void withdraw()}>
-              {withdrawing ? '처리 중…' : '회원 탈퇴'}
-            </button>
+            <Link className="button button--secondary" to="/me/withdraw">회원 탈퇴</Link>
           </section>
         ) : null}
       </main>
+      {confirmingLogout ? <LogoutDialog onClose={() => setConfirmingLogout(false)} /> : null}
     </div>
   )
 }

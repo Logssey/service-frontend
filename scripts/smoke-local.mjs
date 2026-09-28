@@ -149,8 +149,9 @@ try {
   })
   await check('buyer logout', async () => {
     await buyer.page.getByRole('button', { name: '로그아웃' }).click()
+    await buyer.page.getByRole('dialog', { name: '로그아웃할까요?' }).getByRole('button', { name: '로그아웃' }).click()
     await buyer.page.waitForURL(`${baseUrl}/login`)
-    await buyer.page.getByText('로그아웃했습니다.').waitFor()
+    await buyer.page.getByText('로그아웃되었습니다.').waitFor()
   })
 
   await check('seller listing categories', async () => {

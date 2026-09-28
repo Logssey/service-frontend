@@ -1,55 +1,31 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authApi } from '@/features/auth/api/authApi'
-import { useAuthStore } from '@/features/auth/model/authStore'
+import { SplashScreen } from '@/features/auth/components/SplashScreen'
+import { authSession } from '@/features/auth/model/authStore'
+import { recoverSession } from '@/shared/api/http'
 
 /**
  * COM-001 스플래시.
  *
- * Access Token은 메모리에만 있어 새로고침하면 사라진다. 진입 시 Refresh Token 쿠키로
- * 재발급을 시도해 유효하면 홈으로, 없거나 만료면 로그인으로 보낸다.
+ * 세션이 있으면 홈으로, 없으면 로그인으로 보낸다. 새로고침 뒤의 세션 복구는 {@link SessionBootstrap}이
+ * 모든 주소에서 먼저 하므로, 여기서는 아직 토큰이 없을 때만 재발급을 시도한다.
  */
 export function SplashPage() {
   const navigate = useNavigate()
-  const setAccessToken = useAuthStore((state) => state.setAccessToken)
 
   useEffect(() => {
     let canceled = false
+    const restored =
+      authSession.getAccessToken() !== null ? Promise.resolve(true) : recoverSession()
 
-    authApi
-      .refresh()
-      .then((response) => {
-        if (canceled) return
-        setAccessToken(response.accessToken)
-        navigate('/', { replace: true })
-      })
-      .catch(() => {
-        if (canceled) return
-        navigate('/login', { replace: true })
-      })
+    void restored.then((signedIn) => {
+      if (!canceled) navigate(signedIn ? '/' : '/login', { replace: true })
+    })
 
     return () => {
       canceled = true
     }
-  }, [navigate, setAccessToken])
+  }, [navigate])
 
-  return (
-    <div className="app-page auth-page">
-      <main className="auth-shell">
-        <div className="brand brand--splash">
-          <span className="brand__mark" aria-hidden="true">
-            R
-          </span>
-          <div>
-            <strong>Re:Used</strong>
-            <p>다시 쓰는 좋은 물건</p>
-          </div>
-        </div>
-        <div className="state-panel" role="status">
-          <span className="spinner" aria-hidden="true" />
-          <p>로딩 중…</p>
-        </div>
-      </main>
-    </div>
-  )
+  return <SplashScreen />
 }

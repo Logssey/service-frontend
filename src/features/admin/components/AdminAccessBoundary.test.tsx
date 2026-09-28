@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { authApi } from '@/features/auth/api/authApi'
 import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoundary'
 
+vi.mock('@/features/auth/lib/authMode', () => ({ usesAuthMocks: false }))
+
 const baseProfile = {
   userId: 1, nickname: '테스트 사용자', profileImageUrl: null, bio: null,
   status: 'ACTIVE' as const, suspendedUntil: null,

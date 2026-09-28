@@ -1,8 +1,7 @@
 import { ClipboardList, FileText, History, KeyRound, LayoutDashboard, LogOut, Megaphone, PackageSearch, UsersRound } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { authApi } from '@/features/auth/api/authApi'
-import { useAuthStore } from '@/features/auth/model/authStore'
+import { useMyProfile } from '@/features/account/model/queries'
+import { usesAuthMocks } from '@/features/auth/lib/authMode'
 import '@/features/admin/adminOperations.css'
 
 const links = [
@@ -17,8 +16,7 @@ const links = [
 ]
 
 export function AdminLayout() {
-  const accessToken = useAuthStore((state) => state.accessToken)
-  const { data: profile } = useQuery({ queryKey: ['auth', 'me', accessToken], queryFn: authApi.me, refetchOnMount: false })
+  const { data: profile } = useMyProfile({ enabled: !usesAuthMocks })
   return (
     <div className="admin-page">
       <header className="admin-header">
@@ -32,7 +30,7 @@ export function AdminLayout() {
           </span>
         </Link>
         <div className="admin-account">
-          <span>{profile?.nickname ?? '관리자'}</span>
+          <span>{usesAuthMocks ? 'Mock ADMIN' : profile?.nickname ?? '관리자'}</span>
           <Link to="/" aria-label="사용자 화면으로 이동">
             <LogOut size={17} aria-hidden="true" />
             사용자 화면

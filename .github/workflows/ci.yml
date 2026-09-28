@@ -37,6 +37,11 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Lint and test
+        run: |
+          npm run lint
+          npm test
+
       # Vite 는 빌드 시점에 VITE_* 값을 번들에 박는다.
       # 런타임 주입이 불가능하므로 여기서 값을 정해야 하고,
       # 값을 바꾸려면 재빌드가 필요하다.
@@ -50,6 +55,8 @@ jobs:
           VITE_CHAT_SOCKET_URL: ${{ vars.VITE_CHAT_SOCKET_URL || '' }}
           VITE_KAKAO_CLIENT_ID: ${{ vars.VITE_KAKAO_CLIENT_ID || '' }}
           VITE_KAKAO_REDIRECT_URI: ${{ vars.VITE_KAKAO_REDIRECT_URI || '' }}
+          # 채팅 서버가 배포되기 전에는 켜지 않는다. 꺼져 있으면 채팅은 REST로만 동작한다.
+          VITE_CHAT_REALTIME: ${{ vars.VITE_CHAT_REALTIME || 'false' }}
         run: npm run build
 
       - name: Configure AWS credentials

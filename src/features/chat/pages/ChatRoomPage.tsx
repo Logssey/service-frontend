@@ -11,7 +11,7 @@ import {
   useReadMessages,
   useSendMessage,
 } from '@/features/chat/model/queries'
-import { useChatRealtime } from '@/features/chat/model/useChatRealtime'
+import { useChatRoomRealtime } from '@/features/chat/model/realtime'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 import { useListing } from '@/features/listings/model/queries'
 import { TradeStatusBadge } from '@/features/trades/components/TradeStatusBadge'
@@ -38,6 +38,7 @@ export function ChatRoomPage() {
   const sendMessage = useSendMessage(chatRoomId)
   const deleteMessage = useDeleteMessage(chatRoomId)
   const readMessages = useReadMessages(chatRoomId)
+  useChatRoomRealtime(chatRoomId)
   const showToast = useToastStore((state) => state.show)
   const [draft, setDraft] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -47,7 +48,6 @@ export function ChatRoomPage() {
   const initialScrollDoneRef = useRef(false)
   const latestMessageIdRef = useRef<number | null>(null)
   const lastReadRequestRef = useRef<number | null>(null)
-  useChatRealtime([chatRoomId])
   const messages = useMemo(
     () =>
       (messagesQuery.data?.pages.flatMap((page) => page.items) ?? []).sort(

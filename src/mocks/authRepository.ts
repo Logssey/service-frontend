@@ -227,6 +227,7 @@ export const mockAuthRepository = {
     session = null
   },
 
+  /** 탈퇴 후 인증 수단을 제거하고 같은 계정은 새 가입으로 처리한다(ADR-018). */
   async withdraw(): Promise<void> {
     await wait()
     const current = requireSession()

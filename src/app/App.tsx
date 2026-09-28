@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 // 부수효과 import — A의 인증 경계에 실제 토큰 저장소를 연결한다. 지우면 모든 요청이 익명이 된다.
 import '@/app/authWiring'
 import { NotFoundPage } from '@/app/NotFoundPage'
+import { MyPage } from '@/features/account/pages/MyPage'
+import { WithdrawalPage } from '@/features/account/pages/WithdrawalPage'
 import { AdminAccessBoundary } from '@/features/admin/components/AdminAccessBoundary'
 import { AdminLayout } from '@/features/admin/components/AdminLayout'
 import { AdminListingsPage } from '@/features/admin/pages/AdminListingsPage'
@@ -13,6 +15,7 @@ import { AdminReportsPage } from '@/features/admin/pages/AdminReportsPage'
 import { AdminNoticesPage } from '@/features/admin/pages/AdminNoticesPage'
 import { AdminAuditLogsPage } from '@/features/admin/pages/AdminAuditLogsPage'
 import { AdminCredentialStatusPage } from '@/features/admin/pages/AdminCredentialStatusPage'
+import { RequireSession, SessionBootstrap } from '@/features/auth/components/SessionGuard'
 import { EmailLoginPage } from '@/features/auth/pages/EmailLoginPage'
 import { EmailSignupPage } from '@/features/auth/pages/EmailSignupPage'
 import { EmailVerificationPage } from '@/features/auth/pages/EmailVerificationPage'
@@ -66,63 +69,72 @@ useAuthStore.subscribe((state, previous) => {
 
 export function AppRoutes() {
   return (
-    <Routes>
-      {/* 인증 — COM-001, AUTH-001~004 */}
-      <Route path="/splash" element={<SplashPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/login/email" element={<EmailLoginPage />} />
-      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-      <Route path="/onboarding" element={<OnboardingPage />} />
-      <Route path="/signup/email" element={<EmailSignupPage />} />
-      <Route path="/verify-email" element={<EmailVerificationPage />} />
-      <Route path="/password/reset" element={<PasswordResetPage />} />
+    <SessionBootstrap>
+      <Routes>
+        {/* 인증 — COM-001, AUTH-001~004. 소유 확인·온보딩은 화면이 직접 세션을 확인한다 */}
+        <Route path="/splash" element={<SplashPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/email" element={<EmailLoginPage />} />
+        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/signup/email" element={<EmailSignupPage />} />
+        <Route path="/verify-email" element={<EmailVerificationPage />} />
+        <Route path="/password/reset" element={<PasswordResetPage />} />
 
-      <Route path="/" element={<ListingsPage />} />
-      <Route path="/search" element={<ListingSearchPage />} />
-      <Route path="/listings/new" element={<ListingFormPage />} />
-      <Route path="/listings/:listingId" element={<ListingDetailPage />} />
-      <Route path="/listings/:listingId/edit" element={<ListingFormPage />} />
-      <Route path="/wishes" element={<WishesPage />} />
-      <Route path="/me" element={<MyActivityPage />} />
-      <Route path="/me/settings" element={<AccountSettingsPage />} />
-      <Route path="/reports/new" element={<ReportFormPage />} />
-      <Route path="/reports/me" element={<MyReportsPage />} />
-      <Route path="/blocks" element={<BlocksPage />} />
-      <Route path="/notifications" element={<NotificationsPage />} />
-      <Route path="/notices" element={<NoticesPage />} />
-      <Route path="/notices/:noticeId" element={<NoticeDetailPage />} />
-      <Route path="/users/:userId" element={<SellerProfilePage />} />
-      <Route path="/chatbot" element={<ChatbotPage />} />
-      <Route path="/trades" element={<TradesPage />} />
-      <Route path="/trades/:tradeId/review" element={<ReviewFormPage />} />
-      <Route path="/trades/:tradeId" element={<TradeDetailPage />} />
-      <Route path="/chat" element={<ChatRoomsPage />} />
-      <Route path="/chat/:chatRoomId" element={<ChatRoomPage />} />
-      <Route path="/chat-rooms" element={<ChatRoomsPage />} />
-      <Route path="/chat-rooms/:chatRoomId" element={<ChatRoomPage />} />
-      <Route path="/community" element={<CommunityPage />} />
-      <Route path="/community/new" element={<CommunityPostFormPage />} />
-      <Route path="/community/:postId/edit" element={<CommunityPostFormPage />} />
-      <Route path="/community/:postId" element={<CommunityPostDetailPage />} />
-      <Route
-        path="/admin"
-        element={
-          <AdminAccessBoundary>
-            <AdminLayout />
-          </AdminAccessBoundary>
-        }
-      >
-        <Route index element={<AdminDashboardPage />} />
-        <Route path="listings" element={<AdminListingsPage />} />
-        <Route path="trades" element={<AdminTradesPage />} />
-        <Route path="users" element={<AdminUsersPage />} />
-        <Route path="reports" element={<AdminReportsPage />} />
-        <Route path="notices" element={<AdminNoticesPage />} />
-        <Route path="audit-logs" element={<AdminAuditLogsPage />} />
-        <Route path="credentials" element={<AdminCredentialStatusPage />} />
-      </Route>
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+        {/* 공개 — 서버도 인증 없이 허용하는 조회(SecurityConfig permitAll) */}
+        <Route path="/" element={<ListingsPage />} />
+        <Route path="/search" element={<ListingSearchPage />} />
+        <Route path="/listings/:listingId" element={<ListingDetailPage />} />
+        <Route path="/community" element={<CommunityPage />} />
+        <Route path="/community/:postId" element={<CommunityPostDetailPage />} />
+        <Route path="/notices" element={<NoticesPage />} />
+        <Route path="/notices/:noticeId" element={<NoticeDetailPage />} />
+        <Route path="/users/:userId" element={<SellerProfilePage />} />
+
+        <Route element={<RequireSession />}>
+          <Route path="/listings/new" element={<ListingFormPage />} />
+          <Route path="/listings/:listingId/edit" element={<ListingFormPage />} />
+          <Route path="/wishes" element={<WishesPage />} />
+          {/* 마이페이지 — MY-001, MY-003 (screen-design/my-account.md). 내 활동은 MY-001 메뉴에서 들어간다 */}
+          <Route path="/me" element={<MyPage />} />
+          <Route path="/me/activity" element={<MyActivityPage />} />
+          <Route path="/me/settings" element={<AccountSettingsPage />} />
+          <Route path="/me/withdraw" element={<WithdrawalPage />} />
+          <Route path="/reports/new" element={<ReportFormPage />} />
+          <Route path="/reports/me" element={<MyReportsPage />} />
+          <Route path="/blocks" element={<BlocksPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/chatbot" element={<ChatbotPage />} />
+          <Route path="/trades" element={<TradesPage />} />
+          <Route path="/trades/:tradeId/review" element={<ReviewFormPage />} />
+          <Route path="/trades/:tradeId" element={<TradeDetailPage />} />
+          <Route path="/chat" element={<ChatRoomsPage />} />
+          <Route path="/chat/:chatRoomId" element={<ChatRoomPage />} />
+          <Route path="/chat-rooms" element={<ChatRoomsPage />} />
+          <Route path="/chat-rooms/:chatRoomId" element={<ChatRoomPage />} />
+          <Route path="/community/new" element={<CommunityPostFormPage />} />
+          <Route path="/community/:postId/edit" element={<CommunityPostFormPage />} />
+          <Route
+            path="/admin"
+            element={
+              <AdminAccessBoundary>
+                <AdminLayout />
+              </AdminAccessBoundary>
+            }
+          >
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="listings" element={<AdminListingsPage />} />
+            <Route path="trades" element={<AdminTradesPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
+            <Route path="notices" element={<AdminNoticesPage />} />
+            <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+            <Route path="credentials" element={<AdminCredentialStatusPage />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </SessionBootstrap>
   )
 }
 
