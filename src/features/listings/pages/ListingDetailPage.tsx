@@ -117,14 +117,13 @@ export function ListingDetailPage() {
               수정
             </Link>
           ) : (
-            <button
+            <Link
               className="icon-button"
-              type="button"
-              aria-label="상품 더보기"
-              onClick={() => showToast('신고 메뉴는 개발자 B 화면과 함께 연결됩니다.')}
+              aria-label="상품 신고"
+              to={`/reports/new?targetType=LISTING&targetId=${listing.listingId}`}
             >
               <MoreHorizontal aria-hidden="true" />
-            </button>
+            </Link>
           )
         }
       />
@@ -140,10 +139,9 @@ export function ListingDetailPage() {
         />
 
         <div className="detail-content">
-          <button
+          <Link
             className="seller-card"
-            type="button"
-            onClick={() => showToast('판매자 프로필은 사용자 API 계약과 함께 연결됩니다.')}
+            to={`/users/${listing.seller.userId}`}
           >
             <span className="avatar" aria-hidden="true">
               {listing.seller.nickname.slice(0, 1)}
@@ -160,7 +158,7 @@ export function ListingDetailPage() {
               거래 정보
             </span>
             <ChevronRight size={19} aria-hidden="true" />
-          </button>
+          </Link>
 
           <article className="product-copy">
             <ListingStatusBadge status={listing.status} />

@@ -13,6 +13,7 @@ interface AuthStore {
   user: UserSummaryResponse | null
   signupToken: string | null
   setSession: (accessToken: string, user: UserSummaryResponse | null) => void
+  setUser: (user: UserSummaryResponse) => void
   setAccessToken: (accessToken: string) => void
   setSignupToken: (signupToken: string | null) => void
   clear: () => void
@@ -23,6 +24,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   signupToken: null,
   setSession: (accessToken, user) => set({ accessToken, user, signupToken: null }),
+  setUser: (user) => set({ user }),
   setAccessToken: (accessToken) => set({ accessToken }),
   setSignupToken: (signupToken) => set({ signupToken }),
   clear: () => set({ accessToken: null, user: null, signupToken: null }),

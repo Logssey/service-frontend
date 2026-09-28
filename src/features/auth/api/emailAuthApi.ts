@@ -24,7 +24,7 @@ export const emailAuthApi = {
     return apiRequest<AuthTokenResponse>(
       '/auth/email/signup',
       { method: 'POST', body: JSON.stringify(request) },
-      { skipAuthRecovery: true },
+      { skipAuthRecovery: true, omitAccessToken: true },
     )
   },
 
@@ -35,7 +35,7 @@ export const emailAuthApi = {
     return apiRequest<AuthTokenResponse>(
       '/auth/email/login',
       { method: 'POST', body: JSON.stringify(request) },
-      { skipAuthRecovery: true },
+      { skipAuthRecovery: true, omitAccessToken: true },
     )
   },
 
@@ -65,7 +65,7 @@ export const emailAuthApi = {
     return apiRequest<void>(
       '/auth/password/reset',
       { method: 'POST', body: JSON.stringify(request) },
-      { skipAuthRecovery: true },
+      { skipAuthRecovery: true, omitAccessToken: true },
     )
   },
 
@@ -76,7 +76,7 @@ export const emailAuthApi = {
     return apiRequest<void>(
       '/auth/password/reset/confirm',
       { method: 'POST', body: JSON.stringify(request) },
-      { skipAuthRecovery: true },
+      { skipAuthRecovery: true, omitAccessToken: true },
     )
   },
 }

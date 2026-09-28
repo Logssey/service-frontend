@@ -31,11 +31,16 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
 
       - name: Install
         run: npm ci
+
+      - name: Lint and test
+        run: |
+          npm run lint
+          npm test
 
       # Vite 는 빌드 시점에 VITE_* 값을 번들에 박는다.
       # 런타임 주입이 불가능하므로 여기서 값을 정해야 하고,
@@ -56,8 +61,10 @@ jobs:
           VITE_USE_MOCKS: ${{ vars.VITE_USE_MOCKS || 'false' }}
           # 카카오 REST API 키. 인가 요청 주소에 그대로 드러나는 공개 값이라 Secrets 가 아니라 Variables 에 둔다.
           # Client Secret 은 백엔드 전용이며 여기에 넣지 않는다.
-          # 리다이렉트 URI 는 기본값(접속 도메인 + /oauth/callback)을 쓰므로 넘기지 않는다.
           VITE_KAKAO_CLIENT_ID: ${{ vars.VITE_KAKAO_CLIENT_ID }}
+          # 리다이렉트 URI 는 비어 있으면 접속 도메인 + /oauth/callback을 쓴다.
+          VITE_KAKAO_REDIRECT_URI: ${{ vars.VITE_KAKAO_REDIRECT_URI || '' }}
+          VITE_CHAT_SOCKET_URL: ${{ vars.VITE_CHAT_SOCKET_URL || '' }}
           # 채팅 서버가 배포되기 전에는 켜지 않는다. 꺼져 있으면 채팅은 REST로만 동작한다.
           VITE_CHAT_REALTIME: ${{ vars.VITE_CHAT_REALTIME || 'false' }}
         run: npm run build

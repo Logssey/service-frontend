@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { emailAuthApi } from '@/features/auth/api/emailAuthApi'
+import { authApi } from '@/features/auth/api/authApi'
 import { PasswordField } from '@/features/auth/components/PasswordField'
 import { isEmailShaped } from '@/features/auth/lib/passwordPolicy'
 import { useAuthStore } from '@/features/auth/model/authStore'
@@ -29,7 +30,9 @@ export function EmailLoginPage() {
     try {
       const session = await emailAuthApi.emailLogin({ email: email.trim(), password })
       setSession(session.accessToken, session.user)
-      navigate('/', { replace: true })
+      const destination = await authApi.me().then((profile) => profile.role === 'ADMIN' ? '/admin' : '/')
+        .catch(() => '/')
+      navigate(destination, { replace: true })
     } catch (cause: unknown) {
       setError(
         cause instanceof ApiClientError

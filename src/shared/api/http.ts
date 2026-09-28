@@ -50,6 +50,8 @@ export function recoverSession(): Promise<boolean> {
 export interface ApiRequestOptions {
   /** 재발급 요청처럼 401 복구를 시도해도 의미가 없는 호출에 쓴다. */
   skipAuthRecovery?: boolean
+  /** 공개 인증 엔드포인트에는 오래되거나 손상된 Bearer 토큰을 보내지 않는다. */
+  omitAccessToken?: boolean
 }
 
 export async function apiRequest<T>(
@@ -57,20 +59,26 @@ export async function apiRequest<T>(
   init: RequestInit = {},
   options: ApiRequestOptions = {},
 ): Promise<T> {
-  let response = await send(path, init)
+  const sentToken = options.omitAccessToken ? null : accessTokenProvider()
+  let response = await send(path, init, options.omitAccessToken)
 
   if (response.status === 401 && !options.skipAuthRecovery && unauthorizedRecovery) {
-    const recovered = await recoverSession()
+    // A concurrent request may already have refreshed the access token while
+    // this older response was in flight. Retry with it without rotating again.
+    const currentToken = accessTokenProvider()
+    const recovered = currentToken !== null && currentToken !== sentToken
+      ? true
+      : await recoverSession()
     if (recovered) {
-      response = await send(path, init)
+      response = await send(path, init, options.omitAccessToken)
     }
   }
 
   return toResult<T>(response)
 }
 
-function send(path: string, init: RequestInit) {
-  const token = accessTokenProvider()
+function send(path: string, init: RequestInit, omitAccessToken = false) {
+  const token = omitAccessToken ? null : accessTokenProvider()
   const headers = new Headers(init.headers)
 
   if (init.body && !(init.body instanceof FormData)) {

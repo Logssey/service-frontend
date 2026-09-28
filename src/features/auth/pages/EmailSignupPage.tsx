@@ -4,6 +4,7 @@ import { authApi } from '@/features/auth/api/authApi'
 import { emailAuthApi } from '@/features/auth/api/emailAuthApi'
 import { PasswordField } from '@/features/auth/components/PasswordField'
 import { ProfileImagePicker } from '@/features/auth/components/ProfileImagePicker'
+import { deleteProfileUpload, uploadProfileImage } from '@/features/auth/api/profileImageApi'
 import {
   NICKNAME_MAX,
   NICKNAME_MIN,
@@ -28,6 +29,7 @@ type CheckResult = { value: string; available: boolean } | null
 export function EmailSignupPage() {
   const navigate = useNavigate()
   const setSession = useAuthStore((state) => state.setSession)
+  const setUser = useAuthStore((state) => state.setUser)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -38,6 +40,8 @@ export function EmailSignupPage() {
   const [privacyAgreed, setPrivacyAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [profileImage, setProfileImage] = useState<File | null>(null)
+  const [imageWarning, setImageWarning] = useState<string | null>(null)
 
   const trimmedEmail = email.trim()
   const trimmedNickname = nickname.trim()
@@ -83,6 +87,18 @@ export function EmailSignupPage() {
         privacyPolicyAgreed: privacyAgreed,
       })
       setSession(session.accessToken, session.user)
+      if (profileImage) {
+        let imageId: number | null = null
+        try {
+          imageId = await uploadProfileImage(profileImage)
+          const profile = await authApi.updateProfile({ imageId })
+          setUser({ userId: profile.userId, nickname: profile.nickname, profileImageUrl: profile.profileImageUrl })
+        } catch {
+          if (imageId !== null) await deleteProfileUpload(imageId).catch(() => {})
+          setImageWarning('계정은 생성됐지만 프로필 사진을 저장하지 못했습니다. 내 정보에서 다시 등록해 주세요.')
+          return
+        }
+      }
       // 가입 직후 로그인 상태이며 소유 확인 메일이 발송되어 있다. 확인은 건너뛸 수 있다.
       navigate('/verify-email', { replace: true })
     } catch (cause: unknown) {
@@ -95,7 +111,16 @@ export function EmailSignupPage() {
     <div className="app-page auth-page">
       <PageHeader title="회원가입" />
       <main className="auth-shell auth-shell--form">
-        <ProfileImagePicker label="프로필 사진 (선택)" />
+        <ProfileImagePicker label="프로필 사진 (선택)" value={profileImage} onChange={setProfileImage} disabled={submitting} />
+
+        {imageWarning ? (
+          <div className="auth-alert" role="alert">
+            <p>{imageWarning}</p>
+            <button type="button" className="button button--secondary" onClick={() => navigate('/verify-email', { replace: true })}>
+              이메일 확인으로 이동
+            </button>
+          </div>
+        ) : null}
 
         <form className="auth-form" onSubmit={submit}>
           <div className="field">

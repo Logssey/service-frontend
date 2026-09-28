@@ -95,7 +95,7 @@ describe('개발자 B 마이페이지 계정', () => {
       renderRoute('/me')
 
       expect(await screen.findByText('재현')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /비밀번호 변경/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /비밀번호 변경/ })).not.toBeInTheDocument()
       expect(screen.queryByText(/이용정지 중/)).not.toBeInTheDocument()
       expect(screen.queryByText('이메일 인증이 필요해요')).not.toBeInTheDocument()
     })
@@ -118,7 +118,7 @@ describe('개발자 B 마이페이지 계정', () => {
       ).toBeTruthy()
       expect(screen.getByText('jae@example.com')).toBeInTheDocument()
       expect(screen.getByRole('link', { name: '인증하기' })).toHaveAttribute('href', '/verify-email')
-      expect(screen.getByRole('button', { name: /비밀번호 변경/ })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /비밀번호 변경/ })).toHaveAttribute('href', '/me/settings')
     })
 
     it('정지 기간이 이미 지났으면 status가 남아 있어도 배너를 보이지 않는다', async () => {
@@ -143,14 +143,15 @@ describe('개발자 B 마이페이지 계정', () => {
       expect(await screen.findByText('이용정지 중 · 해제될 때까지')).toBeInTheDocument()
     })
 
-    it('아직 화면이 없는 메뉴는 준비 중 안내를 띄운다', async () => {
-      const user = userEvent.setup()
+    it('신고·차단·알림·공지를 구현된 화면으로 연결한다', async () => {
       await signInWithKakao()
       renderRoute('/me')
 
-      await user.click(await screen.findByRole('button', { name: '차단 목록' }))
-
-      expect(useToastStore.getState().message).toBe('준비 중인 기능입니다.')
+      const menu = await screen.findByRole('navigation', { name: '마이페이지 메뉴' })
+      expect(within(menu).getByRole('link', { name: '내 신고 내역' })).toHaveAttribute('href', '/reports/me')
+      expect(within(menu).getByRole('link', { name: '차단 목록' })).toHaveAttribute('href', '/blocks')
+      expect(within(menu).getByRole('link', { name: '알림' })).toHaveAttribute('href', '/notifications')
+      expect(within(menu).getByRole('link', { name: '공지사항' })).toHaveAttribute('href', '/notices')
     })
 
     it('세션이 없으면 로그인 화면으로 보낸다', async () => {

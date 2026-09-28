@@ -179,7 +179,7 @@ export const chatSocket = new ChatSocketClient({
   // 여러 인스턴스 뒤에서 스티키 세션 없이 붙도록 롱폴링을 쓰지 않는다.
   // forceNew가 없으면 socket.io가 닫은 소켓을 캐시에서 다시 돌려준다.
   createSocket: () =>
-    io({
+    io(import.meta.env.VITE_CHAT_SOCKET_URL || undefined, {
       path: '/socket.io',
       transports: ['websocket'],
       autoConnect: false,

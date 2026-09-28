@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/app/App'
 import { listingsApi } from '@/features/listings/api/listingsApi'
 import { reviewsApi } from '@/features/reviews/api/reviewsApi'
+import { authApi } from '@/features/auth/api/authApi'
+import { useAuthStore } from '@/features/auth/model/authStore'
 import {
   initialListingFilters,
   useListingFilterStore,
@@ -19,6 +21,16 @@ function renderRoute(path: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
+  if (path.startsWith('/admin')) {
+    const adminProfile = {
+      userId: 999, nickname: '테스트 관리자', profileImageUrl: null, bio: null,
+      role: 'ADMIN' as const, status: 'ACTIVE' as const, suspendedUntil: null,
+      provider: 'LOCAL' as const, email: 'admin@example.test', emailVerified: true,
+      createdAt: '2026-01-10T03:00:00Z',
+    }
+    vi.spyOn(authApi, 'me').mockResolvedValue(adminProfile)
+    queryClient.setQueryData(['auth', 'me', useAuthStore.getState().accessToken], adminProfile)
+  }
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[path]}>
@@ -521,7 +533,7 @@ describe('개발자 A 핵심 거래 흐름', () => {
     const user = userEvent.setup()
     renderRoute('/admin/trades')
 
-    const userIdInput = screen.getByPlaceholderText('판매자 또는 구매자 회원 ID')
+    const userIdInput = await screen.findByPlaceholderText('판매자 또는 구매자 회원 ID')
     await user.type(userIdInput, '0')
     await user.click(screen.getByRole('button', { name: '조회' }))
     expect(screen.getByRole('alert')).toHaveTextContent(

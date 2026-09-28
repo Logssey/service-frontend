@@ -1,0 +1,117 @@
+.notification-list,
+.notice-list,
+.seller-reviews,
+.chatbot-exchanges {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 28px;
+}
+
+.notification-card,
+.notice-card,
+.review-card,
+.chatbot-exchange,
+.seller-profile,
+.notice-detail {
+  display: block;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.notification-card.is-unread {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.notification-card p,
+.chatbot-exchange p,
+.review-card p {
+  margin: 8px 0;
+  white-space: pre-wrap;
+}
+
+.notification-card small,
+.notice-card small,
+.review-card small {
+  color: var(--ink-soft);
+}
+
+.notification-card__actions,
+.chatbot-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.notification-card__actions button,
+.notification-card__actions a {
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--brand-deep);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.notification-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.notification-setting input {
+  width: 20px;
+  height: 20px;
+}
+
+.notice-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.notice-card:hover {
+  border-color: var(--brand);
+}
+
+.notice-detail__content {
+  margin-top: 20px;
+  white-space: pre-wrap;
+}
+
+.seller-profile__intro {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.seller-profile__intro img,
+.seller-profile__intro > span {
+  display: grid;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  font-size: 28px;
+  object-fit: cover;
+}
+
+@media (max-width: 600px) {
+  .notice-card,
+  .seller-profile__intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

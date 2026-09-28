@@ -118,7 +118,7 @@ export function CommunityPostDetailPage() {
               </div>
               <h1>{postQuery.data.title}</h1>
               <div className="community-post-detail__meta">
-                <strong>{postQuery.data.author.nickname}</strong>
+                {postQuery.data.author.userId ? <Link to={`/users/${postQuery.data.author.userId}`}><strong>{postQuery.data.author.nickname}</strong></Link> : <strong>{postQuery.data.author.nickname}</strong>}
                 <time dateTime={postQuery.data.createdAt}>
                   {dateFormatter.format(new Date(postQuery.data.createdAt))}
                 </time>
@@ -145,7 +145,11 @@ export function CommunityPostDetailPage() {
                     삭제
                   </button>
                 </div>
-              ) : null}
+              ) : (
+                <div className="community-post-detail__actions">
+                  <Link className="button button--secondary" to={`/reports/new?targetType=COMMUNITY_POST&targetId=${postId}`}>게시글 신고</Link>
+                </div>
+              )}
             </article>
 
             {isConfirmingDelete ? (
@@ -267,10 +271,10 @@ export function CommunityPostDetailPage() {
                   {comments.map((comment) => (
                     <li className="community-comment" key={comment.commentId}>
                       <div>
-                        <strong>{comment.author.nickname}</strong>
+                        {comment.author.userId ? <Link to={`/users/${comment.author.userId}`}><strong>{comment.author.nickname}</strong></Link> : <strong>{comment.author.nickname}</strong>}
                         {comment.isMine ? (
                           <span className="community-mine-badge">내 댓글</span>
-                        ) : null}
+                        ) : <Link to={`/reports/new?targetType=COMMUNITY_COMMENT&targetId=${comment.commentId}`}>신고</Link>}
                         <time dateTime={comment.createdAt}>
                           {dateFormatter.format(new Date(comment.createdAt))}
                         </time>

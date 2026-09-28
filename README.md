@@ -1,6 +1,6 @@
 # Re:Used Frontend
 
-Re:Used 중고거래 서비스의 React SPA입니다. 개발자 A의 카테고리·이미지·게시글부터 찜·거래·채팅·관리자 조회까지 목 API로 실행할 수 있습니다.
+Re:Used 중고거래 서비스의 React SPA입니다. 목 API 또는 실제 백엔드·채팅 게이트웨이에 연결해 실행할 수 있습니다.
 
 ## 현재 구현 범위
 
@@ -25,6 +25,9 @@ Re:Used 중고거래 서비스의 React SPA입니다. 개발자 A의 카테고�
 - `ME` 받은 후기 조회
 - `ADM-004` 관리자 게시글 조회·숨김·복구·논리 삭제
 - `ADM-006` 관리자 거래 내역 조회
+- 관리자 대시보드·회원·신고·공지·감사 로그·연동 설정 상태와 챗봇 운영 스위치
+- 상품·커뮤니티·채팅 신고, 사용자 차단, 알림·공지·판매자 프로필, 내 계정 설정·로그아웃
+- Socket.IO 실시간 채팅(REST 저장·30초 재조회 보완)과 추천 질문 챗봇
 - 문서 DTO와 동일한 목 repository
 - Presigned URL 기반 이미지 업로드 어댑터
 - 모바일 우선 반응형 레이아웃과 데스크톱 대응
@@ -47,9 +50,9 @@ npm run dev
 
 인증 화면은 `/login`, `/signup/email`, `/verify-email`, `/password/reset`, 카카오 콜백 `/oauth/callback`, 온보딩 `/onboarding`이다. API 계약은 `service-design-docs/05-api/endpoints/auth`를 따른다 — 소셜 로그인은 `POST /auth/oauth/{provider}`, 약관은 `termsOfServiceAgreed`·`privacyPolicyAgreed` 2개 필드, 이메일 중복확인 API는 없고 가입 요청의 409로만 알린다. 인증·재설정 코드는 메일로만 전달되며 목 모드에서는 브라우저 콘솔에 `[mock mail]`로 찍힌다.
 
-카카오에는 이메일을 요청하지 않는다. 소셜 온보딩에서 이메일을 선택 입력할 수 있고, 입력하면 `[선택] 이메일 수집·이용 동의`(`emailCollectionAgreed`)가 함께 필요하며 가입 뒤 `/verify-email`에서 소유를 확인한다(ADR-016). 소셜 계정의 이메일은 연락 수단이라 로그인·비밀번호 재설정에 쓰이지 않는다. 인증 화면은 `GET /users/me`의 `email`이 있고 `emailVerified`가 `false`인 계정만 대상으로 하므로, 이 기능은 `email` 필드를 내려 주는 백엔드가 배포된 뒤에 머지한다.
+카카오에는 이메일을 요청하지 않는다. 소셜 온보딩에서 이메일을 선택 입력할 수 있고, 입력하면 `[선택] 이메일 수집·이용 동의`(`emailCollectionAgreed`)가 함께 필요하며 가입 뒤 `/verify-email`에서 소유를 확인한다(ADR-016). 소셜 계정의 이메일은 연락 수단이라 로그인·비밀번호 재설정에 쓰이지 않는다. 인증 화면은 `GET /users/me`의 `email`과 `emailVerified`를 사용한다.
 
-주요 사용자 화면은 `/`, `/wishes`, `/trades`, `/chat`, `/community`, `/me`에서 확인할 수 있습니다. 커뮤니티 글은 `/community/new`에서 작성하고 `/community/:postId`에서 조회하며, 본인 글은 `/community/:postId/edit`에서 수정할 수 있습니다. 관리자 화면은 `/admin/listings`, `/admin/trades`에서 확인할 수 있으며 현재 ADMIN 권한은 인증 연동 전 목 경계를 사용합니다.
+주요 사용자 화면은 `/`, `/wishes`, `/trades`, `/chat`, `/community`, `/me`, `/me/settings`, `/notifications`, `/notices`, `/users/:userId`, `/chatbot`이다. 커뮤니티 글은 `/community/new`에서 작성하고 `/community/:postId`에서 조회하며, 본인 글은 `/community/:postId/edit`에서 수정한다. 관리자 화면은 `/admin` 아래에 있으며 `GET /users/me`의 현재 역할과 서버 ADMIN 권한 검증을 사용한다. 관리자 계정은 이메일 로그인 후 대시보드로 이동한다.
 
 ## 검증
 
@@ -58,6 +61,19 @@ npm run test
 npm run lint
 npm run build
 ```
+
+시드된 로컬 DB와 실제 API·채팅 게이트웨이·S3 대역을 띄운 뒤에는 브라우저 스모크도 실행할 수 있다. 계정과 비밀번호는 환경변수로만 전달하며 저장소에 기록하지 않는다.
+
+```powershell
+$env:SMOKE_BASE_URL='http://127.0.0.1:5173'
+$env:SMOKE_BUYER_EMAIL='demo-buyer@reused.invalid'
+$env:SMOKE_SELLER_EMAIL='demo-seller@reused.invalid'
+$env:SMOKE_ADMIN_EMAIL='demo-admin@reused.invalid'
+$env:SMOKE_PASSWORD='<로컬 데모 시드 비밀번호>'
+npm run smoke:local
+```
+
+로컬 Chrome 기본 설치 경로가 다르면 `SMOKE_CHROME_PATH`를 지정한다. 이 검증은 데모 구매자 프로필 이미지를 업로드한다.
 
 ## API 모드
 
@@ -68,8 +84,8 @@ VITE_API_BASE_URL=/api/v1
 VITE_USE_MOCKS=true
 ```
 
-`VITE_USE_MOCKS=false`로 전환하면 Vite 개발 서버가 `/api` 요청을 `http://localhost:8080`으로 프록시합니다.
+`VITE_USE_MOCKS=false`로 전환하면 Vite 개발 서버가 `/api` 요청을 `VITE_API_PROXY_TARGET`(기본 `http://localhost:8080`)으로, `/socket.io` 요청을 `VITE_CHAT_PROXY_TARGET`(기본 `http://localhost:3001`)으로 프록시한다. 운영 프록시에도 두 경로 모두 필요하며 WebSocket 업그레이드를 전달해야 한다.
 
-실제 API 계약에는 채팅방 단건 조회가 아직 없습니다. `/chat/:chatRoomId` 직접 진입은 현재 API 어댑터가 채팅방 목록을 순회해 복구하며, 백엔드 구현 전에 단건 조회 응답 계약을 확정해야 합니다.
+CI 프로덕션 빌드는 GitHub Variables의 `VITE_KAKAO_CLIENT_ID`, `VITE_KAKAO_REDIRECT_URI`, `VITE_CHAT_REALTIME`, `VITE_CHAT_SOCKET_URL`을 번들에 반영한다. 이 값은 공개 클라이언트 설정이며 비밀 키가 아니다. 실시간 채팅을 켜려면 `VITE_CHAT_REALTIME=true`로 설정하고 같은 Origin의 `/socket.io`를 채팅 게이트웨이로 라우팅하거나 `VITE_CHAT_SOCKET_URL`에 별도 게이트웨이 주소를 지정한다.
 
-메시지 저장·조회는 HTTP API를 쓰고, 실시간 수신은 `VITE_CHAT_REALTIME=true`일 때 Socket.IO 게이트웨이(`service-backend/chat-server`)에 붙습니다. Vite 개발 서버가 `/socket.io`를 `http://localhost:3001`로 프록시하며, 채팅 서버는 `CHAT_ALLOWED_ORIGINS=http://localhost:5173`으로 띄워야 합니다. 채팅방 화면만 구독하고, 이벤트를 받으면 메시지 목록을 HTTP로 다시 읽습니다. 끄면 채팅은 화면 진입·포커스 때만 갱신됩니다.
+실제 API 계약에는 채팅방 단건 조회가 없다. `/chat/:chatRoomId` 직접 진입은 현재 API 어댑터가 채팅방 목록을 순회해 복구한다. 메시지 저장·조회는 HTTP API를 쓰고, 실시간 이벤트는 Socket.IO로 받은 뒤 HTTP에서 다시 읽는다. Vite 개발 서버는 `/socket.io`를 `VITE_CHAT_PROXY_TARGET`으로 프록시하며 게이트웨이에 브라우저 Origin을 허용해야 한다. 실시간이 꺼지면 채팅 목록과 메시지는 30초마다 갱신된다. 추천 질문 챗봇만 제공하며 자유입력은 개인정보 전송 정책에 따라 비활성이다.

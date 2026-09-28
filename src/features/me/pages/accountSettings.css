@@ -1,0 +1,11 @@
+.account-settings { display: grid; gap: 24px; max-width: 650px; padding-block: 24px 90px; }
+.account-settings__section { display: grid; gap: 12px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+.account-settings__section h1, .account-settings__section h2 { margin: 0; font-size: 1.2rem; }
+.account-settings__section p { margin: 0; color: var(--ink-soft); }
+.account-settings__section .auth-form { width: 100%; }
+.account-settings__section .field textarea { min-height: 90px; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); resize: vertical; }
+.account-settings__danger { border-color: #e9b4b4; }
+.account-settings__danger button { justify-self: start; }
+.account-header-actions { display: flex; gap: 12px; }
+.account-quick-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.account-quick-links a { padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-soft); font-size: .8rem; }

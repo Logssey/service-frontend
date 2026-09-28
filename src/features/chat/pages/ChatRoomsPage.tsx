@@ -1,6 +1,7 @@
 import { MessageCircle, ReceiptText } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useChatRooms } from '@/features/chat/model/queries'
+import { useChatRealtime } from '@/features/chat/model/useChatRealtime'
 import { ProductImage } from '@/features/listings/components/ProductImage'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/components/AsyncState'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -16,6 +17,7 @@ const relativeFormatter = new Intl.DateTimeFormat('ko-KR', {
 export function ChatRoomsPage() {
   const roomsQuery = useChatRooms()
   const rooms = roomsQuery.data?.pages.flatMap((page) => page.items) ?? []
+  useChatRealtime(rooms.map((room) => room.chatRoomId))
 
   return (
     <div className="app-page collection-page">

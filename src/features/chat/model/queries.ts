@@ -13,6 +13,7 @@ export const chatKeys = {
 export function useChatRooms() {
   return useInfiniteQuery({
     queryKey: chatKeys.rooms(),
+    refetchInterval: 30_000,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => chatApi.getChatRooms(pageParam, 15),
     getNextPageParam: (lastPage) =>
@@ -31,6 +32,7 @@ export function useChatRoom(chatRoomId: number) {
 export function useMessages(chatRoomId: number) {
   return useInfiniteQuery({
     queryKey: chatKeys.messages(chatRoomId),
+    refetchInterval: 30_000,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => chatApi.getMessages(chatRoomId, pageParam, 30),
     getNextPageParam: (lastPage) =>

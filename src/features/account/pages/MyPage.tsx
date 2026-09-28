@@ -29,14 +29,14 @@ const ACTIVITY_MENU: MenuItem[] = [
 ]
 
 const TRUST_MENU: MenuItem[] = [
-  { label: '내 신고 내역' },
-  { label: '차단 목록' },
-  { label: '알림 설정' },
-  { label: '공지사항' },
+  { label: '내 신고 내역', to: '/reports/me' },
+  { label: '차단 목록', to: '/blocks' },
+  { label: '알림', to: '/notifications' },
+  { label: '공지사항', to: '/notices' },
 ]
 
 /** 비밀번호는 이메일 계정에만 있다(ADR-016). 카카오 계정은 이 묶음을 통째로 숨긴다. */
-const ACCOUNT_MENU: MenuItem[] = [{ label: '비밀번호 변경', tag: '이메일 계정' }]
+const ACCOUNT_MENU: MenuItem[] = [{ label: '비밀번호 변경', to: '/me/settings', tag: '이메일 계정' }]
 
 const COMING_SOON = '준비 중인 기능입니다.'
 
@@ -102,7 +102,7 @@ export function MyPage() {
         ) : null}
 
         {profile ? (
-          <button className="my-profile" type="button" onClick={comingSoon}>
+          <Link className="my-profile" to="/me/settings">
             {profile.profileImageUrl ? (
               <img className="my-profile__avatar" src={profile.profileImageUrl} alt="" />
             ) : (
@@ -116,7 +116,7 @@ export function MyPage() {
             </span>
             <span className="sr-only">프로필 수정</span>
             <ChevronRight aria-hidden="true" />
-          </button>
+          </Link>
         ) : null}
         {profileQuery.isPending ? (
           <div className="my-profile my-profile--loading" role="status">
