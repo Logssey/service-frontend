@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
 let accessTokenProvider: () => string | null = () => null
 let unauthorizedRecovery: (() => Promise<boolean>) | null = null
+let recoveryInFlight: Promise<boolean> | null = null
 
 export class ApiClientError extends Error {
   constructor(
@@ -31,6 +32,21 @@ export function configureUnauthorizedRecovery(recovery: () => Promise<boolean>) 
   unauthorizedRecovery = recovery
 }
 
+/**
+ * 등록된 복구를 실행한다. 동시에 여러 곳에서 불러도 재발급 요청은 하나만 보낸다.
+ *
+ * Refresh Token은 한 번 쓰면 폐기되고, 폐기된 토큰이 다시 오면 서버가 탈취로 보고
+ * 그 사용자의 세션을 모두 끊는다(ADR-005). 화면 하나가 여러 쿼리를 동시에 다시 불러
+ * 401이 겹쳐도 같은 쿠키로 재발급을 두 번 보내면 안 된다.
+ */
+export function recoverSession(): Promise<boolean> {
+  if (!unauthorizedRecovery) return Promise.resolve(false)
+  recoveryInFlight ??= unauthorizedRecovery().finally(() => {
+    recoveryInFlight = null
+  })
+  return recoveryInFlight
+}
+
 export interface ApiRequestOptions {
   /** 재발급 요청처럼 401 복구를 시도해도 의미가 없는 호출에 쓴다. */
   skipAuthRecovery?: boolean
@@ -44,7 +60,7 @@ export async function apiRequest<T>(
   let response = await send(path, init)
 
   if (response.status === 401 && !options.skipAuthRecovery && unauthorizedRecovery) {
-    const recovered = await unauthorizedRecovery()
+    const recovered = await recoverSession()
     if (recovered) {
       response = await send(path, init)
     }
