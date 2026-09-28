@@ -10,9 +10,9 @@ export const accountKeys = {
   ongoingTrades: () => [...accountKeys.all, 'ongoing-trades'] as const,
 }
 
-/** MY-001 · GET /users/me */
-export function useMyProfile() {
-  return useQuery({ queryKey: accountKeys.me(), queryFn: () => authApi.me() })
+/** MY-001 · GET /users/me. 관리자 화면 진입 확인(AdminAccessBoundary)도 이 캐시를 쓴다. */
+export function useMyProfile({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({ queryKey: accountKeys.me(), queryFn: () => authApi.me(), enabled })
 }
 
 /** MY-001 · 평점·거래 수. 내 userId를 알아야 부를 수 있다. */
