@@ -1,0 +1,161 @@
+name: CI/CD
+
+# develop, main 을 대상으로 한 PR 에서 동작한다.
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+    branches: [main, develop]
+
+permissions:
+  # AWS OIDC 토큰 발급에 필요하다. 기본값이 아니므로 명시한다.
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+  ECR_REPOSITORY: logssey/reused-web
+  GITOPS_REPO: Logssey/gitops
+  GITOPS_VALUES_PATH: apps/reused-web/values.yaml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Vite 는 빌드 시점에 VITE_* 값을 번들에 박는다.
+      # 런타임 주입이 불가능하므로 여기서 값을 정해야 하고,
+      # 값을 바꾸려면 재빌드가 필요하다.
+      #
+      # 번들은 브라우저로 전달되므로 비밀을 넣지 않는다.
+      # Variables 에 값이 없으면 기본값을 쓴다.
+      - name: Build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '/api/v1' }}
+          VITE_USE_MOCKS: ${{ vars.VITE_USE_MOCKS || 'false' }}
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: pr-${{ github.event.pull_request.head.sha }}
+        run: |
+          docker build \
+            --label "org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}" \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            .
+          docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  retag:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.retag.outputs.IMAGE_TAG }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Retag image
+        id: retag
+        env:
+          SOURCE_TAG: pr-${{ github.event.pull_request.head.sha }}
+          TARGET_TAG: ${{ github.event.pull_request.head.sha }}
+        run: |
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$SOURCE_TAG" \
+            --query 'images[].imageManifest' \
+            --output text)
+
+          if [ -z "$MANIFEST" ] || [ "$MANIFEST" = "None" ]; then
+            echo "소스 이미지($SOURCE_TAG)를 찾을 수 없다."
+            exit 1
+          fi
+
+          aws ecr put-image \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-tag "$TARGET_TAG" \
+            --image-manifest "$MANIFEST" \
+            || echo "이미 같은 다이제스트에 태그가 있다. 건너뛴다."
+
+          echo "IMAGE_TAG=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: retag
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Generate token
+        id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: Logssey
+          repositories: gitops
+
+      - name: Checkout gitops
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ steps.token.outputs.token }}
+          ref: main
+
+      - name: Update image tag
+        env:
+          IMAGE_TAG: ${{ needs.retag.outputs.image_tag }}
+        run: |
+          # yq 는 파일을 다시 쓰면서 빈 줄을 제거해 불필요한 diff 가 생긴다.
+          # 태그 한 줄만 바꾸므로 sed 를 쓴다.
+          sed -i "s|^  tag: .*|  tag: \"${IMAGE_TAG}\"|" "$GITOPS_VALUES_PATH"
+          echo "=== 변경 결과 ==="
+          grep -A3 "^image:" "$GITOPS_VALUES_PATH"
+
+      - name: Commit and push
+        env:
+          IMAGE_TAG: ${{ needs.retag.outputs.image_tag }}
+        run: |
+          git config user.name "logssey-gitops-bot[bot]"
+          git config user.email "logssey-gitops-bot[bot]@users.noreply.github.com"
+          git add "$GITOPS_VALUES_PATH"
+
+          if git diff --cached --quiet; then
+            echo "변경 사항이 없다."
+            exit 0
+          fi
+
+          git commit -m "cd: reused-web 이미지 태그를 ${IMAGE_TAG} 로 갱신
+
+          PR: #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}
+          Actor: ${{ github.actor }}"
+          git push origin main
