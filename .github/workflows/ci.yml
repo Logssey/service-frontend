@@ -42,31 +42,25 @@ jobs:
           npm run lint
           npm test
 
-      # Vite 는 빌드 시점에 VITE_* 값을 번들에 박는다.
-      # 런타임 주입이 불가능하므로 여기서 값을 정해야 하고,
-      # 값을 바꾸려면 재빌드가 필요하다.
-      #
-      # 번들은 브라우저로 전달되므로 비밀을 넣지 않는다.
-      # Variables 에 값이 없으면 기본값을 쓴다.
-      #
-      # 카카오 REST API 키는 기본값이 없다. 비어 있으면 번들이 빈 client_id 로 인가를 요청해
-      # 카카오 로그인이 실패하므로 경고를 남긴다.
+      # 카카오 REST API 키가 비어 있으면 번들이 빈 client_id 로 인가를 요청해
+      # 카카오 로그인이 실패한다. 빌드는 막지 않고 경고만 남긴다.
       - name: Check Kakao client id
         if: vars.VITE_KAKAO_CLIENT_ID == ''
-        run: echo "::warning::저장소 Variables에 VITE_KAKAO_CLIENT_ID가 없습니다. 이 번들로는 카카오 로그인이 동작하지 않습니다."
+        run: echo "::warning::저장소 Variables 에 VITE_KAKAO_CLIENT_ID 가 없습니다. 이 번들로는 카카오 로그인이 동작하지 않습니다."
 
+      # Vite 는 빌드 시점에 VITE_* 값을 번들에 박는다.
+      # 런타임 주입이 불가능하므로 값을 바꾸려면 재빌드해야 한다.
+      #
+      # 번들은 브라우저로 전달되므로 비밀을 넣지 않는다.
+      # 값은 레포 Variables 에서 관리한다. 누락되면 빈 문자열이 되어
+      # 빌드는 성공하지만 동작이 달라지므로 Variables 등록을 빠뜨리지 않는다.
       - name: Build
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '/api/v1' }}
-          VITE_USE_MOCKS: ${{ vars.VITE_USE_MOCKS || 'false' }}
-          # 카카오 REST API 키. 인가 요청 주소에 그대로 드러나는 공개 값이라 Secrets 가 아니라 Variables 에 둔다.
-          # Client Secret 은 백엔드 전용이며 여기에 넣지 않는다.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_USE_MOCKS: ${{ vars.VITE_USE_MOCKS }}
           VITE_KAKAO_CLIENT_ID: ${{ vars.VITE_KAKAO_CLIENT_ID }}
-          # 리다이렉트 URI 는 비어 있으면 접속 도메인 + /oauth/callback을 쓴다.
-          VITE_KAKAO_REDIRECT_URI: ${{ vars.VITE_KAKAO_REDIRECT_URI || '' }}
-          VITE_CHAT_SOCKET_URL: ${{ vars.VITE_CHAT_SOCKET_URL || '' }}
-          # 채팅 서버가 배포되기 전에는 켜지 않는다. 꺼져 있으면 채팅은 REST로만 동작한다.
-          VITE_CHAT_REALTIME: ${{ vars.VITE_CHAT_REALTIME || 'false' }}
+          VITE_KAKAO_REDIRECT_URI: ${{ vars.VITE_KAKAO_REDIRECT_URI }}
+          VITE_CHAT_REALTIME: ${{ vars.VITE_CHAT_REALTIME }}
         run: npm run build
 
       - name: Configure AWS credentials
@@ -92,6 +86,8 @@ jobs:
             .
           docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
+  # 머지되면 pr-{SHA} 를 {SHA} 로 리태깅한다.
+  # 재빌드하지 않고 매니페스트만 복사하므로 같은 이미지가 보장된다.
   retag:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
@@ -129,12 +125,16 @@ jobs:
 
           echo "IMAGE_TAG=$TARGET_TAG" >> "$GITHUB_OUTPUT"
 
+  # gitops 레포의 이미지 태그를 갱신한다.
+  # Argo CD 가 변경을 감지해 배포한다.
   deploy:
     needs: retag
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     environment: production
     steps:
+      # GitHub App 으로 gitops 레포 접근 토큰을 발급받는다.
+      # PAT 과 달리 개인 계정에 종속되지 않고 1시간 뒤 만료된다.
       - name: Generate token
         id: token
         uses: actions/create-github-app-token@v2
